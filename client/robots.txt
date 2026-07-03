@@ -1,0 +1,7 @@
+User-agent: *
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /api/
+Allow: /
+
+Sitemap: https://adhyashaktishop.com/sitemap.xml

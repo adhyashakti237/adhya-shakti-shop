@@ -1,0 +1,44 @@
+# Environment secrets — never commit these
+.env
+server/.env
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+.pytest_cache/
+
+# Databases and live business data
+*.db
+*.sqlite
+*.sqlite3
+server/backups/
+server/bulk_import_jobs/
+server/import_data/
+private_bills/
+
+# Uploads and generated customer/admin files
+uploads/
+server/uploads/
+*.zip
+
+# Local run logs and diagnostics
+*.log
+*.err
+*.out
+*_server.err
+*_server.out
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db

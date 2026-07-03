@@ -1,0 +1,24 @@
+{
+  "name": "Adhya Shakti Shop",
+  "short_name": "Adhya Shakti",
+  "description": "Handcrafted jewelry, clothing, custom printing, and gifts from Adhya Shakti Shop.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fbfaf7",
+  "theme_color": "#0f3d33",
+  "icons": [
+    {
+      "src": "/images/logo-main.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/images/logo-main.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
