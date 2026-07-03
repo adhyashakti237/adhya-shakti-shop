@@ -260,6 +260,23 @@ Router.register('/admin/orders', async () => {
     printOrderDocument(o, 'invoice');
   };
 
+  window.sendOrderEmail = async (id, kind) => {
+    const labels = {
+      confirmation: 'order confirmation',
+      status: 'order status update',
+      review: 'review request',
+    };
+    const label = labels[kind] || 'order email';
+    if (!confirm(`Send ${label} email for this order?`)) return;
+    try {
+      const res = await api.post(`/admin/orders/${id}/email/${kind}`, {});
+      toast(res.message || 'Email sent', 'success');
+      await loadOrders();
+    } catch (e) {
+      toast(e.message || 'Email could not be sent', 'error');
+    }
+  };
+
   window.viewOrderAdmin = async (id) => {
     const o = orders.find(x => x.id === id);
     if (!o) return;
@@ -364,7 +381,11 @@ Router.register('/admin/orders', async () => {
         <div class="mt-16" style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-outline" data-csp-onclick="printPackingSlip('${o.id}')"><i class="fas fa-box-open"></i> Packing slip</button>
           <button class="btn btn-outline" data-csp-onclick="printAdminInvoice('${o.id}')"><i class="fas fa-file-invoice"></i> Invoice</button>
+          <button class="btn btn-outline" data-csp-onclick="sendOrderEmail('${o.id}','confirmation')"><i class="fas fa-envelope"></i> Resend confirmation</button>
+          <button class="btn btn-outline" data-csp-onclick="sendOrderEmail('${o.id}','status')"><i class="fas fa-paper-plane"></i> Send status</button>
+          ${o.status === 'delivered' ? `<button class="btn btn-outline" data-csp-onclick="sendOrderEmail('${o.id}','review')"><i class="fas fa-star"></i> Request review</button>` : ''}
         </div>
+        ${o.review_requested_at ? `<div class="text-sm text-muted mt-8"><i class="fas fa-check-circle"></i> Review request sent ${fmtDate(o.review_requested_at)}</div>` : ''}
       </div>`);
   };
 

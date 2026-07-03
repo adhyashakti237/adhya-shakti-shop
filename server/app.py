@@ -779,6 +779,55 @@ def email_order_status(order_num, customer_name, customer_email, status, trackin
                f'{subject_line} - {order_num} | Adhya Shakti Shop', html)
 
 
+def _review_request_item_rows(items_data):
+    rows = []
+    seen = set()
+    for item in items_data or []:
+        product_id = clean_text(item.get('id'), 80)
+        if not product_id or product_id in seen:
+            continue
+        seen.add(product_id)
+        product_name = item.get('name') or 'Purchased item'
+        review_url = f'https://adhyashaktishop.com/product/{quote(product_id)}'
+        variation = clean_text(item.get('variation'), 100)
+        rows.append(f"""
+<tr>
+  <td>
+    <strong>{h(product_name)}</strong>
+    {f'<div class="muted" style="font-size:.82rem;margin-top:3px">{h(variation)}</div>' if variation else ''}
+  </td>
+  <td style="text-align:right">
+    <a href="{h(review_url)}" style="color:#1D5C4A;font-weight:700;text-decoration:none">Review</a>
+  </td>
+</tr>""")
+    return ''.join(rows)
+
+
+def email_review_request(order_num, customer_name, customer_email, items_data):
+    item_rows = _review_request_item_rows(items_data)
+    product_table = f"""
+<h3>Review Your Item(s)</h3>
+<table class="items">
+  <thead><tr><th>Product</th><th style="text-align:right">Action</th></tr></thead>
+  <tbody>{item_rows}</tbody>
+</table>""" if item_rows else ''
+    html = _email_html(f"""
+<h2>How Was Your Order?</h2>
+<p>Hi {h(customer_name)},</p>
+<p>Your order <strong>{h(order_num)}</strong> was marked delivered. We hope everything arrived safely and you love your purchase.</p>
+<div class="note">
+  Your honest review helps other shoppers feel confident and helps our small shop improve.
+</div>
+{product_table}
+<div style="text-align:center;margin:28px 0">
+  <a href="https://adhyashaktishop.com/dashboard" class="cta">Open My Orders</a>
+</div>
+<p class="muted">If something is wrong with the order, please reply to this email instead of leaving a review first. We want a chance to make it right.</p>
+{_support_email_block()}""", f'Order {order_num} was delivered. Share your review when you have a moment.')
+    send_email(ORDER_MAIL_USER, ORDER_MAIL_PASS, customer_email,
+               f'How was your order? - {order_num} | Adhya Shakti Shop', html)
+
+
 def validate_password(password):
     if len(password) < 8:
         return 'Password must be at least 8 characters'
@@ -1041,7 +1090,7 @@ def log_admin_action(action, message='', metadata=None):
 
 def fetch_order_for_audit(db, oid):
     row = db.execute(
-        "SELECT id,order_number,status,payment_status,tracking_number,total,updated_at FROM orders WHERE id=?",
+        "SELECT id,order_number,status,payment_status,tracking_number,total,review_requested_at,updated_at FROM orders WHERE id=?",
         (oid,)
     ).fetchone()
     return dict(row) if row else None
@@ -1134,6 +1183,7 @@ def init_db():
             status TEXT DEFAULT 'pending',
             tracking_number TEXT,
             notes TEXT,
+            review_requested_at TEXT,
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY (user_id) REFERENCES users(id)
@@ -1413,6 +1463,7 @@ def init_db():
     # ── Migrations: add new columns to existing databases safely ─────────────
     migrations = [
         "ALTER TABLE orders ADD COLUMN payment_intent_id TEXT",
+        "ALTER TABLE orders ADD COLUMN review_requested_at TEXT",
         "ALTER TABLE products ADD COLUMN allow_custom_print INTEGER DEFAULT 0",
         "ALTER TABLE contact_messages ADD COLUMN inquiry_type TEXT",
         "ALTER TABLE contact_messages ADD COLUMN order_number TEXT",
@@ -3689,6 +3740,96 @@ def _allowed_admin_payment_transition(old_payment_status, new_payment_status, ol
     return old_payment_status in ('pending', 'failed') and new_payment_status in ('pending', 'paid', 'failed')
 
 
+def _order_items_for_email(order):
+    try:
+        return json.loads(order.get('items') or '[]')
+    except Exception:
+        return []
+
+
+def _order_shipping_for_email(order):
+    try:
+        return json.loads(order.get('shipping_address') or '{}')
+    except Exception:
+        return {}
+
+
+def send_review_request_for_order(db, order, *, force=False):
+    if not order:
+        return False, 'Order not found'
+    if order.get('status') != 'delivered':
+        return False, 'Review requests can only be sent after delivery.'
+    if order.get('review_requested_at') and not force:
+        return False, 'Review request was already sent.'
+    items = _order_items_for_email(order)
+    email_review_request(
+        order['order_number'],
+        order['customer_name'],
+        order['customer_email'],
+        items,
+    )
+    db.execute(
+        "UPDATE orders SET review_requested_at=COALESCE(review_requested_at, datetime('now')), updated_at=datetime('now') WHERE id=?",
+        (order['id'],)
+    )
+    db.commit()
+    return True, 'Review request email sent.'
+
+
+@app.route('/api/admin/orders/<oid>/email/<kind>', methods=['POST'])
+@limiter.limit("20 per minute; 120 per hour")
+@admin_required
+def admin_send_order_email(oid, kind):
+    kind = clean_text(kind, 40).lower()
+    if kind not in ('confirmation', 'status', 'review'):
+        return jsonify({'error': 'Email type not found'}), 404
+
+    db = get_db()
+    order = row_to_dict(db.execute("SELECT * FROM orders WHERE id=? OR order_number=?", (oid, oid)).fetchone())
+    if not order:
+        return jsonify({'error': 'Order not found'}), 404
+
+    items = _order_items_for_email(order)
+    shipping_address = _order_shipping_for_email(order)
+
+    if kind == 'confirmation':
+        email_order_confirmation(
+            order['order_number'],
+            order['customer_name'],
+            order['customer_email'],
+            items,
+            order['subtotal'],
+            order['discount'],
+            order['shipping_charge'],
+            order['total'],
+            shipping_address,
+        )
+        message = 'Order confirmation email resent.'
+    elif kind == 'status':
+        email_order_status(
+            order['order_number'],
+            order['customer_name'],
+            order['customer_email'],
+            order['status'],
+            order.get('tracking_number'),
+        )
+        message = 'Order status email sent.'
+    else:
+        sent, message = send_review_request_for_order(db, order, force=True)
+        if not sent:
+            return jsonify({'error': message}), 400
+
+    log_admin_action('order_email_sent', message, {
+        'order_id': order['id'],
+        'entity_type': 'order',
+        'entity_id': order['id'],
+        'order_number': order['order_number'],
+        'email_type': kind,
+        'customer_email': order['customer_email'],
+    })
+    return jsonify({'message': message})
+
+
 @app.route('/api/admin/orders/<oid>', methods=['PUT'])
 @admin_required
 def update_order(oid):
@@ -3744,6 +3885,26 @@ def update_order(oid):
             order['order_number'], order['customer_name'], order['customer_email'],
             new_status, tracking or order.get('tracking_number')
         )
+        if new_status == 'delivered':
+            fresh_order = row_to_dict(db.execute("SELECT * FROM orders WHERE id=?", (oid,)).fetchone())
+            sent_review, review_message = send_review_request_for_order(db, fresh_order, force=False)
+            if sent_review:
+                log_admin_action('review_request_sent', 'Review request sent after delivery', {
+                    'order_id': oid,
+                    'entity_type': 'order',
+                    'entity_id': oid,
+                    'order_number': order['order_number'],
+                    'mode': 'automatic',
+                })
+            else:
+                log_security_event(
+                    'review_request_skipped',
+                    'info',
+                    review_message,
+                    user_id=g.user.get('id'),
+                    email=g.user.get('email'),
+                    metadata={'order_id': oid, 'order_number': order['order_number'], 'mode': 'automatic'},
+                )
     return jsonify({'message': 'Order updated'})
 
 
