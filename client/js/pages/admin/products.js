@@ -81,8 +81,9 @@ Router.register('/admin/products', async () => {
               Product reports are live filters. Use No image, No cost price, and Out of stock before uploads or restocking.
             </div>
           </div>
-          <div class="table-wrap admin-products-wrap">
-            <table class="admin-products-table">
+          <div class="admin-mobile-scroll-hint"><i class="fas fa-arrows-left-right"></i> Swipe sideways to view all columns</div>
+          <div class="table-wrap admin-wide-scroll admin-products-wrap">
+            <table class="admin-wide-table admin-products-table">
               <thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody id="products-table-body">
                 ${renderProductRows(products)}

@@ -62,7 +62,9 @@ Router.register('/admin/users', async () => {
         </label>
         <span class="text-muted text-sm">${filtered().length} shown from ${baseFiltered().length} ${view === 'staff' ? 'staff/admin' : 'customers'}</span>
       </div>
-      <div class="card"><div class="table-wrap"><table>
+      <div class="card">
+        <div class="admin-mobile-scroll-hint"><i class="fas fa-arrows-left-right"></i> Swipe sideways to view all columns</div>
+        <div class="table-wrap admin-wide-scroll admin-users-wrap"><table class="admin-wide-table admin-users-table">
         <thead>
           <tr>
             <th>Name</th>
