@@ -751,13 +751,15 @@ Router.register('/track-order', () => {
         refunded: 'Refund has been issued to the original payment method.',
       }[order.status] || 'Status update available.';
       result.innerHTML = `
-        <div class="card">
+        <div class="card track-result-card">
           <div class="card-header flex-between">
             <span style="font-weight:700">Order <span style="color:var(--primary)">${order.order_number}</span></span>
             <span style="background:${col}20;color:${col};padding:4px 12px;border-radius:20px;font-size:.82rem;font-weight:700;text-transform:capitalize">${order.status}</span>
           </div>
           <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
+            ${typeof accountOrderTimeline === 'function' ? accountOrderTimeline(order.status) : ''}
             <div class="alert alert-info" style="margin:0"><strong>${esc(order.status.replace(/_/g,' '))}:</strong> ${esc(statusText)} Need help? Contact contact@adhyashaktishop.com with your order number.</div>
+            ${typeof accountOrderTrackingPanel === 'function' ? accountOrderTrackingPanel(order) : ''}
             <div class="grid-2" style="gap:12px;font-size:.9rem">
               <div><span style="color:var(--text-light)">Placed on</span><br><strong>${new Date(order.created_at).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</strong></div>
               <div><span style="color:var(--text-light)">Total</span><br><strong>${fmt(order.total)}</strong></div>
@@ -773,6 +775,7 @@ Router.register('/track-order', () => {
                   <span>${fmt((it.price || 0) * (it.qty || it.quantity || 0))}</span>
                 </div>`).join('')}
             </div>
+            ${typeof accountOrderSupportStrip === 'function' ? accountOrderSupportStrip(order) : ''}
           </div>
         </div>`;
     } catch (err) {

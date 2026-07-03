@@ -74,6 +74,69 @@ function customerOrderGuidance(o) {
   return `${map[s] || accountStatusMeta(s).message} ${support}`;
 }
 
+function accountOrderTrackingUrl(trackingNumber) {
+  const tracking = String(trackingNumber || '').trim();
+  if (!tracking) return '';
+  return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(tracking)}`;
+}
+
+function accountOrderNextAction(o) {
+  const s = String(o?.status || '').toLowerCase();
+  const tracking = String(o?.tracking_number || '').trim();
+  if (s === 'pending') return { icon: 'fa-clock', tone: 'warn', text: 'We received your order. You can still cancel before it ships.' };
+  if (s === 'processing') return { icon: 'fa-box-open', tone: 'info', text: 'We are preparing your order. Tracking appears after shipping.' };
+  if (s === 'shipped' && tracking) return { icon: 'fa-truck-fast', tone: 'info', text: `Tracking is ready: ${tracking}` };
+  if (s === 'shipped') return { icon: 'fa-truck', tone: 'info', text: 'Shipped. Tracking will show here when it is available.' };
+  if (s === 'delivered') return { icon: 'fa-star', tone: 'success', text: 'Delivered. You can write a review or contact us if anything is wrong.' };
+  if (s === 'return_requested') return { icon: 'fa-undo-alt', tone: 'warn', text: 'Return request received. Ship it back within 7 business days.' };
+  if (s === 'return_received') return { icon: 'fa-box-open', tone: 'info', text: 'Return package received. Refund review is in progress.' };
+  if (s === 'cancelled') return { icon: 'fa-ban', tone: 'danger', text: 'Cancelled. Refund timing depends on your bank.' };
+  if (s === 'refunded') return { icon: 'fa-check-circle', tone: 'success', text: 'Refund issued to the original payment method.' };
+  return { icon: 'fa-circle-info', tone: 'info', text: accountStatusMeta(s).message };
+}
+
+function accountOrderNextActionHtml(o) {
+  const next = accountOrderNextAction(o);
+  return `<div class="account-order-next ${next.tone}"><i class="fas ${next.icon}"></i><span>${esc(next.text)}</span></div>`;
+}
+
+function accountOrderTrackingPanel(o) {
+  const tracking = String(o?.tracking_number || '').trim();
+  const href = accountOrderTrackingUrl(tracking);
+  if (!tracking) {
+    return `
+      <div class="account-tracking-panel muted">
+        <i class="fas fa-truck"></i>
+        <div>
+          <strong>Tracking not available yet</strong>
+          <span>We will add tracking once the package is ready with the carrier.</span>
+        </div>
+      </div>`;
+  }
+  return `
+    <div class="account-tracking-panel">
+      <i class="fas fa-truck-fast"></i>
+      <div>
+        <strong>${esc(tracking)}</strong>
+        <span>Carrier scans can take a little time to update after shipment.</span>
+      </div>
+      <a class="btn btn-sm btn-outline account-tracking-link" href="${href}" target="_blank" rel="noopener">
+        Track package <i class="fas fa-external-link-alt"></i>
+      </a>
+    </div>`;
+}
+
+function accountOrderSupportStrip(o) {
+  return `
+    <div class="account-support-strip">
+      <i class="fas fa-headset"></i>
+      <div>
+        <strong>Need help with this order?</strong>
+        <span>Email <a href="mailto:contact@adhyashaktishop.com?subject=Order%20${encodeURIComponent(o?.order_number || '')}">contact@adhyashaktishop.com</a> and include order <b>${esc(o?.order_number || '')}</b>.</span>
+      </div>
+    </div>`;
+}
+
 function accountOrderTimeline(status, compact = false) {
   const current = ACCOUNT_ORDER_STEPS.indexOf(String(status || '').toLowerCase());
   const special = current === -1;
@@ -114,13 +177,14 @@ function accountOrderCard(o, compact = false) {
         <div class="account-order-total">${fmt(o.total || 0)}</div>
       </div>
       ${accountOrderTimeline(o.status, compact)}
+      ${accountOrderNextActionHtml(o)}
       <div class="account-order-footer">
         <div class="account-order-badges">
           ${statusBadge(o.payment_status)}
           ${statusBadge(o.status)}
         </div>
         <div class="account-order-actions">
-          <button class="btn btn-sm btn-outline" data-csp-onclick="trackOrder('${esc(o.id)}','${esc(o.status)}')"><i class="fas fa-map-marker-alt"></i> Track</button>
+          <button class="btn btn-sm btn-outline" data-csp-onclick="trackOrder('${esc(o.id)}','${esc(o.status)}','${esc(o.tracking_number || '')}')"><i class="fas fa-map-marker-alt"></i> Track</button>
           <button class="btn btn-sm btn-primary" data-csp-onclick="viewOrder('${esc(o.id)}')"><i class="fas fa-eye"></i> Details</button>
         </div>
       </div>
@@ -136,7 +200,7 @@ function safeAddressLine(profile) {
   }
 }
 
-function showOrderTracking(id, status) {
+function showOrderTracking(id, status, trackingNumber = '') {
   const steps = ['pending', 'processing', 'shipped', 'delivered'];
   const curIdx = steps.indexOf(status);
   const specialLabels = {
@@ -155,6 +219,14 @@ function showOrderTracking(id, status) {
           <i class="fas ${special.icon}" style="font-size:3rem;color:${special.color};display:block;margin-bottom:16px"></i>
           <div style="font-size:1rem;font-weight:700;color:${special.color};margin-bottom:8px">${special.text}</div>
         </div>` : accountOrderTimeline(status)}
+      ${accountOrderTrackingPanel({ status, tracking_number: trackingNumber })}
+      <div class="account-support-strip" style="margin-top:12px">
+        <i class="fas fa-circle-info"></i>
+        <div>
+          <strong>Status updates are automatic</strong>
+          <span>If a carrier scan is delayed, check again later or contact us with your order number.</span>
+        </div>
+      </div>
     </div>`);
 }
 
@@ -419,6 +491,8 @@ async function openOrderModal(id) {
           ${accountOrderTimeline(o.status)}
         </div>
 
+        ${accountOrderNextActionHtml(o)}
+
         <div class="alert alert-info" style="margin-bottom:16px">
           <strong>${esc(accountStatusMeta(o.status).label)}:</strong>
           ${esc(customerOrderGuidance(o))}
@@ -434,6 +508,15 @@ async function openOrderModal(id) {
         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
           <i class="fas fa-clock" style="color:#d97706;font-size:1.1rem"></i>
           <div style="font-size:.84rem"><strong style="color:#d97706">Order is waiting for review.</strong> We will update the status as it moves into processing and shipping.</div>
+        </div>` : ''}
+
+        ${o.status === 'delivered' ? `
+        <div class="account-review-nudge">
+          <i class="fas fa-star"></i>
+          <div>
+            <strong>How was everything?</strong>
+            <span>Your review helps other shoppers. If something arrived wrong or damaged, contact us first so we can fix it.</span>
+          </div>
         </div>` : ''}
 
         <!-- Items -->
@@ -471,11 +554,8 @@ async function openOrderModal(id) {
           <div style="font-size:.88rem;line-height:1.6">${esc(addr.line1)}${addr.landmark ? ', ' + esc(addr.landmark) : ''}<br>${esc(addr.city)}, ${esc(addr.state)} ${esc(addr.pin || addr.zip || '')}</div>
         </div>
 
-        ${o.tracking_number ? `
-        <div style="margin-top:12px;padding:12px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">
-          <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#2563eb;margin-bottom:4px"><i class="fas fa-truck"></i> Tracking Number</div>
-          <div style="font-size:.95rem;font-weight:700;color:#1e40af">${esc(o.tracking_number)}</div>
-        </div>` : ''}
+        <div style="margin-top:12px">${accountOrderTrackingPanel(o)}</div>
+        ${accountOrderSupportStrip(o)}
 
       </div>
       <div class="modal-footer" style="flex-wrap:wrap;gap:8px">
@@ -687,6 +767,8 @@ async function printInvoice(idOrObj) {
     .trow.grand{font-weight:800;font-size:13px;color:#1D5C4A;border-top:2px solid #1D5C4A;border-bottom:none;padding-top:8px;margin-top:2px}
     .footer{padding-top:10px;border-top:1px solid #e8e8e4;display:flex;justify-content:space-between;align-items:center;margin-top:10px}
     .footer p{font-size:9px;color:#bbb}
+    .support-note{margin-top:12px;padding:10px 12px;background:#f8faf9;border:1px solid #e7eee9;border-radius:6px;color:#42524c;font-size:9.5px;line-height:1.55}
+    .support-note strong{color:#1D5C4A}
     .no-print{text-align:center;margin-top:18px}
     .print-btn{background:#1D5C4A;color:#fff;border:none;padding:9px 26px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.02em}
     .print-hint{font-size:9.5px;color:#bbb;margin-top:5px}
@@ -782,6 +864,11 @@ async function printInvoice(idOrObj) {
       <div class="trow"><span>Shipping</span><span>${o.shipping_charge===0?'FREE':'$'+Number(o.shipping_charge).toFixed(2)}</span></div>
       <div class="trow grand"><span>Total Charged</span><span>$${Number(o.total).toFixed(2)}</span></div>
     </div>
+  </div>
+
+  <div class="support-note">
+    <strong>Order support:</strong> Email contact@adhyashaktishop.com with order ${esc(o.order_number)} if you need help.
+    Refunds, cancellations, and returns follow the policy shown on adhyashaktishop.com/refund.
   </div>
 
   <!-- FOOTER -->

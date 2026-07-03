@@ -86,7 +86,7 @@ const Router = {
     'csSignup', 'toggleFaq', 'deleteReview',
     'clothingSignup', 'customPrintSignup',
     'changePassword', 'saveProfile', 'filterMyOrders', 'viewOrder', 'trackOrder', 'applyWelcomeDiscount',
-    'confirmCancelOrder', 'doCancelOrder', 'confirmRequestReturn', 'doRequestReturn',
+    'confirmCancelOrder', 'doCancelOrder', 'confirmRequestReturn', 'doRequestReturn', 'printInvoice',
     'doTrackOrder', 'submitContact', 'submitBulkOrder',
     // Admin/staff bundle (admin.html) — same shared cleanup list
     'doAdminLogin', 'searchProducts', 'goProductPage',
