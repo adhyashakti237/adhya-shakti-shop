@@ -188,6 +188,7 @@ Router.register('/admin/orders', async () => {
               </button>`).join('')}
           </div>
         </div>
+        <div class="admin-mobile-scroll-hint"><i class="fas fa-arrows-left-right"></i> Swipe sideways to view all columns</div>
         <div class="table-wrap admin-wide-scroll"><table class="admin-wide-table">
           <thead><tr><th>Order #</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th>Flags</th><th>Actions</th></tr></thead>
           <tbody>

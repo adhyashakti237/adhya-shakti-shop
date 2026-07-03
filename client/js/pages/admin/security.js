@@ -747,6 +747,7 @@ Router.register('/admin/security', async (params = {}) => {
             </div>
           ` : ''}
           ${renderRestoreDrillPanel(lastRestoreDrill)}
+          <div class="admin-mobile-scroll-hint"><i class="fas fa-arrows-left-right"></i> Swipe sideways to view all columns</div>
           <div class="table-wrap admin-wide-scroll">
             <table>
               <thead><tr><th>Backup</th><th>Size</th><th>Manifest</th><th>Source</th><th>Uploads</th><th>Bills</th><th>Actions</th></tr></thead>
@@ -772,6 +773,7 @@ Router.register('/admin/security', async (params = {}) => {
       </div>
       <div class="card" style="margin-bottom:22px">
         <div class="card-header">Latest admin/staff changes</div>
+        <div class="admin-mobile-scroll-hint"><i class="fas fa-arrows-left-right"></i> Swipe sideways to view all columns</div>
         <div class="table-wrap admin-wide-scroll">
           <table>
             <thead><tr><th>Date</th><th>Action</th><th>User</th><th>IP</th><th>Message</th></tr></thead>
@@ -789,6 +791,7 @@ Router.register('/admin/security', async (params = {}) => {
           <span>Latest security events</span>
           <button class="btn btn-sm btn-ghost" data-csp-onclick="refreshSecurityPage()"><i class="fas fa-rotate"></i> Refresh</button>
         </div>
+        <div class="admin-mobile-scroll-hint"><i class="fas fa-arrows-left-right"></i> Swipe sideways to view all columns</div>
         <div class="table-wrap admin-wide-scroll">
           <table>
             <thead><tr><th>Date</th><th>Level</th><th>Event</th><th>User</th><th>IP</th><th>Message</th><th>Review</th><th>Action</th></tr></thead>
