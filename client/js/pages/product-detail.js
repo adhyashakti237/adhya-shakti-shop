@@ -114,6 +114,8 @@ Router.register('/product/:id', async (params) => {
     const simpleOutOfStock = !hasVariants && Number(p.stock || 0) <= 0;
     const unavailable = allOutOfStock || simpleOutOfStock;
     const wData = Wishlist.payloadAttr({ id: p.id, name: p.name, price: p.price, compare_price: p.compare_price || 0, image: imgs[0] });
+    const viewer = (typeof Auth !== 'undefined' && Auth.getUser) ? Auth.getUser() : null;
+    const notifyEmail = viewer?.email || '';
 
     // Color dot helper
     const colorDotMap = {
@@ -301,6 +303,16 @@ Router.register('/product/:id', async (params) => {
                   <i class="fas fa-heart"></i> <span id="wish-label">${Wishlist.has(p.id) ? 'Saved' : 'Save'}</span>
                 </button>
               </div>
+              ${unavailable ? `
+              <div id="back-stock-box" style="border:1.5px solid #d8eadf;background:#f6fbf8;border-radius:12px;padding:16px;margin:-8px 0 24px">
+                <div style="font-weight:800;color:var(--primary);margin-bottom:4px"><i class="fas fa-bell" style="margin-right:7px"></i>Notify me when this is back</div>
+                <div style="font-size:.86rem;color:var(--text-light);line-height:1.55;margin-bottom:12px">Enter your email and we will send one message when this product is available again.</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <input class="form-control" id="bis-email" type="email" value="${esc(notifyEmail)}" placeholder="you@example.com" style="flex:1;min-width:210px;background:#fff" />
+                  <button class="btn btn-primary" id="bis-btn" data-csp-onclick="requestBackInStock()"><i class="fas fa-envelope"></i> Notify Me</button>
+                </div>
+                <div id="bis-msg" style="font-size:.82rem;margin-top:8px;color:var(--text-light)"></div>
+              </div>` : ''}
               <div class="product-confidence-panel">
                 <div><i class="fas fa-lock"></i><span>Secure checkout powered by Stripe</span></div>
                 <div><i class="fas fa-truck"></i><span>Ships from New Jersey, USA</span></div>
@@ -715,6 +727,36 @@ Router.register('/product/:id', async (params) => {
 
     window.buyNow = () => {
       if (addToCartDetail()) Router.navigate('/cart');
+    };
+
+    window.requestBackInStock = async () => {
+      const emailEl = document.getElementById('bis-email');
+      const btn = document.getElementById('bis-btn');
+      const msg = document.getElementById('bis-msg');
+      const email = (emailEl?.value || '').trim();
+      if (!email || !email.includes('@')) {
+        toast('Please enter a valid email address.', 'warning');
+        if (msg) { msg.style.color = '#b45309'; msg.textContent = 'Please enter a valid email address.'; }
+        emailEl?.focus();
+        return;
+      }
+      if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...'; }
+      try {
+        const res = await api.post(`/products/${p.id}/back-in-stock`, {
+          email,
+          name: viewer?.name || '',
+        });
+        toast(res.message || "You're on the list.", 'success');
+        if (msg) {
+          msg.style.color = 'var(--success)';
+          msg.textContent = res.message || "You're on the list. We'll email you when it is available again.";
+        }
+        if (btn) btn.innerHTML = '<i class="fas fa-check"></i> Requested';
+      } catch (e) {
+        toast(e.message, 'error');
+        if (msg) { msg.style.color = '#b91c1c'; msg.textContent = e.message; }
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Notify Me'; }
+      }
     };
 
     // Keep sizes visible before color selection so customers understand the buying flow.

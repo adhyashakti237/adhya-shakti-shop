@@ -20,7 +20,7 @@ from email.mime.multipart import MIMEMultipart
 from html import escape, unescape
 from functools import wraps
 from urllib.parse import quote
-from flask import Flask, request, jsonify, send_from_directory, g, Response, abort
+from flask import Flask, request, jsonify, send_from_directory, g, Response, abort, has_request_context
 from flask_cors import CORS
 from werkzeug.exceptions import RequestEntityTooLarge
 import jwt
@@ -428,6 +428,40 @@ def email_welcome_discount(to_email, code):
 </p>""", f'Use {code} for 10% off your first order.')
     send_email(CONTACT_MAIL_USER, CONTACT_MAIL_PASS, to_email,
                'Your 10% Off Welcome Code - Adhya Shakti Shop', html)
+
+
+def email_back_in_stock(to_email, name, product):
+    product_id = product.get('id') or ''
+    product_name = product.get('name') or 'Your saved product'
+    product_url = f'https://adhyashaktishop.com/product/{quote(str(product_id))}'
+    price = product.get('price')
+    price_line = f'<p><strong>Price:</strong> ${float(price):.2f}</p>' if price not in (None, '') else ''
+    image_url = ''
+    images = product.get('images') or []
+    if images:
+        first = images[0]
+        image_url = first if str(first).startswith('http') else f'https://adhyashaktishop.com{first}'
+    image_block = f"""
+<div style="text-align:center;margin:18px 0">
+  <img src="{h(image_url)}" alt="{h(product_name)}" style="max-width:240px;width:100%;border-radius:14px;border:1px solid #eee8dd" />
+</div>""" if image_url else ''
+    hello = f'Hi {h(name)},' if name else 'Hi,'
+    html = _email_html(f"""
+<h2>{h(product_name)} Is Back In Stock</h2>
+<p>{hello}</p>
+<p>The product you asked about is available again. Inventory can move quickly, so please order soon if you still want it.</p>
+{image_block}
+<div class="note">
+  <strong>{h(product_name)}</strong><br>
+  {price_line}
+  <span class="muted">Availability is not reserved until checkout is completed.</span>
+</div>
+<div style="text-align:center;margin:28px 0">
+  <a href="{h(product_url)}" class="cta">View Product</a>
+</div>
+<p class="muted">You received this because you requested a back-in-stock notification for this product.</p>""", f'{product_name} is available again.')
+    send_email(CONTACT_MAIL_USER, CONTACT_MAIL_PASS, to_email,
+               f'{product_name} is back in stock - Adhya Shakti Shop', html)
 
 
 def email_password_reset(name, to_email, reset_link):
@@ -1216,6 +1250,23 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
+        CREATE TABLE IF NOT EXISTS back_in_stock_requests (
+            id TEXT PRIMARY KEY,
+            product_id TEXT NOT NULL,
+            email TEXT NOT NULL,
+            name TEXT,
+            user_id TEXT,
+            status TEXT DEFAULT 'pending',
+            request_count INTEGER DEFAULT 1,
+            source TEXT DEFAULT 'product_page',
+            created_at TEXT DEFAULT (datetime('now')),
+            last_requested_at TEXT DEFAULT (datetime('now')),
+            notified_at TEXT,
+            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+            UNIQUE (product_id, email)
+        );
+
         CREATE TABLE IF NOT EXISTS security_events (
             id TEXT PRIMARY KEY,
             event_type TEXT NOT NULL,
@@ -1411,6 +1462,14 @@ def init_db():
         db.execute("""
             CREATE INDEX IF NOT EXISTS idx_welcome_discounts_used
             ON welcome_discounts(used_at)
+        """)
+        db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_back_in_stock_product_status
+            ON back_in_stock_requests(product_id, notified_at, created_at)
+        """)
+        db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_back_in_stock_email
+            ON back_in_stock_requests(email, created_at)
         """)
         db.execute("""
             CREATE INDEX IF NOT EXISTS idx_admin_audit_log_created
@@ -2226,6 +2285,72 @@ def get_product(pid):
     return jsonify(p)
 
 
+@app.route('/api/products/<pid>/back-in-stock', methods=['POST'])
+@limiter.limit("8 per minute; 40 per hour")
+def request_back_in_stock(pid):
+    data = request.json or {}
+    raw_email = (data.get('email') or '').strip().lower()
+    email = normalize_public_email(raw_email)
+    name = clean_text(data.get('name'), 120)
+    limited = public_abuse_guard(
+        'back_in_stock',
+        email=email or raw_email,
+        fingerprint=pid,
+        ip_limit=20,
+        email_limit=8,
+        fingerprint_limit=160,
+        window_seconds=3600,
+    )
+    if limited:
+        return limited
+    if not email:
+        return jsonify({'error': 'Please enter a valid email address.'}), 400
+
+    db = get_db()
+    product = db.execute(
+        "SELECT id,name,stock,is_active FROM products WHERE id=?",
+        (clean_text(pid, 80),)
+    ).fetchone()
+    if not product or not product['is_active']:
+        return jsonify({'error': 'Product not found'}), 404
+    if int(product['stock'] or 0) > 0:
+        return jsonify({
+            'message': 'This product is back in stock now. You can add it to your cart.',
+            'in_stock': True,
+        })
+
+    current_customer = _optional_customer_from_cookie(db)
+    user_id = current_customer['id'] if current_customer and current_customer['email'].lower() == email else None
+    db.execute(
+        """
+        INSERT INTO back_in_stock_requests
+            (id,product_id,email,name,user_id,status,source)
+        VALUES (?,?,?,?,?,'pending','product_page')
+        ON CONFLICT(product_id,email) DO UPDATE SET
+            name=COALESCE(NULLIF(excluded.name,''), back_in_stock_requests.name),
+            user_id=COALESCE(excluded.user_id, back_in_stock_requests.user_id),
+            status='pending',
+            notified_at=NULL,
+            last_requested_at=datetime('now'),
+            request_count=IFNULL(back_in_stock_requests.request_count,1)+1
+        """,
+        (str(uuid.uuid4()), product['id'], email, name, user_id)
+    )
+    db.commit()
+    log_security_event(
+        'back_in_stock_requested',
+        'info',
+        'Customer requested a back-in-stock notification',
+        user_id=user_id,
+        email=email,
+        metadata={'product_id': product['id'], 'product_name': product['name']},
+    )
+    return jsonify({
+        'message': "You're on the list. We'll email you when this product is available again.",
+        'in_stock': False,
+    })
+
+
 def _save_variants(db, pid, variants):
     db.execute("DELETE FROM product_variants WHERE product_id=?", (pid,))
     for v in (variants or []):
@@ -2271,6 +2396,76 @@ def _clean_product_stock(value):
         return 0
 
 
+def _optional_customer_from_cookie(db):
+    token = request_auth_token()
+    if not token:
+        return None
+    try:
+        data = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+        row = db.execute(
+            "SELECT id,email,role,token_version FROM users WHERE id=?",
+            (data.get('id'),)
+        ).fetchone()
+        if row and row['role'] == 'customer' and row['token_version'] == data.get('tv', 0):
+            return row
+    except jwt.InvalidTokenError:
+        return None
+    except Exception:
+        return None
+    return None
+
+
+def _product_public_payload(row):
+    if not row:
+        return {}
+    product = dict(row)
+    try:
+        product['images'] = json.loads(product.get('images') or '[]')
+    except Exception:
+        product['images'] = []
+    return product
+
+
+def notify_back_in_stock_for_product(db, product_id):
+    product_row = db.execute(
+        "SELECT id,name,price,images,stock,is_active FROM products WHERE id=?",
+        (product_id,)
+    ).fetchone()
+    if not product_row or not product_row['is_active'] or int(product_row['stock'] or 0) <= 0:
+        return 0
+    requests = db.execute(
+        """
+        SELECT id,email,name
+        FROM back_in_stock_requests
+        WHERE product_id=? AND notified_at IS NULL
+        ORDER BY created_at ASC
+        """,
+        (product_id,)
+    ).fetchall()
+    if not requests:
+        return 0
+
+    now = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    db.executemany(
+        "UPDATE back_in_stock_requests SET status='notified', notified_at=? WHERE id=?",
+        [(now, r['id']) for r in requests]
+    )
+    db.commit()
+
+    product = _product_public_payload(product_row)
+    for req in requests:
+        email_back_in_stock(req['email'], req['name'] or '', product)
+
+    if has_request_context():
+        log_security_event(
+            'back_in_stock_notified',
+            'info',
+            f'Sent {len(requests)} back-in-stock notification(s)',
+            metadata={'product_id': product_id, 'product_name': product.get('name'), 'count': len(requests)},
+        )
+    return len(requests)
+
+
 def _clean_optional_money(value):
     if value in (None, ''):
         return None
@@ -2305,6 +2500,7 @@ def _admin_product_health(db):
                OR NOT EXISTS (SELECT 1 FROM categories c WHERE c.id=p.category_id)
         """),
         'no_cost': one("SELECT COUNT(*) FROM products WHERE IFNULL(cost_price,0)<=0"),
+        'notify_waiting': one("SELECT COUNT(*) FROM back_in_stock_requests WHERE notified_at IS NULL"),
     }
 
 
@@ -2334,6 +2530,13 @@ def admin_products_list():
         )""")
     elif status == 'no_cost':
         where.append("IFNULL(p.cost_price,0)<=0")
+    elif status == 'notify_waiting':
+        where.append("""
+            EXISTS (
+                SELECT 1 FROM back_in_stock_requests bis
+                WHERE bis.product_id=p.id AND bis.notified_at IS NULL
+            )
+        """)
     elif status not in ('all', ''):
         where.append("IFNULL(p.is_active,1)=1")
         status = 'active'
@@ -2343,7 +2546,9 @@ def admin_products_list():
     where_sql = (" WHERE " + " AND ".join(where)) if where else ""
     total = db.execute(f"SELECT COUNT(*) FROM products p{where_sql}", params).fetchone()[0]  # nosec B608
     rows = rows_to_list(db.execute(
-        f"""SELECT p.*, c.name AS category_name
+        f"""SELECT p.*, c.name AS category_name,
+                   (SELECT COUNT(*) FROM back_in_stock_requests bis
+                    WHERE bis.product_id=p.id AND bis.notified_at IS NULL) AS back_in_stock_waiting
             FROM products p
             LEFT JOIN categories c ON c.id=p.category_id
             {where_sql}
@@ -2458,6 +2663,11 @@ def update_product(pid):
     )
     _save_variants(db, pid, variants)
     db.commit()
+    if int(before.get('stock') or 0) <= 0 and total_stock > 0:
+        try:
+            notify_back_in_stock_for_product(db, pid)
+        except Exception as exc:
+            app.logger.warning('back-in-stock notify after product update failed: %s', exc)
     log_admin_action('product_updated', f'Updated product: {name}', {
         'product_id': pid,
         'entity_type': 'product',
@@ -2913,6 +3123,7 @@ def _reserve_order_stock(db, stored_items):
 
 
 def _restore_order_stock(db, stored_items):
+    affected_product_ids = set()
     for item in stored_items:
         pid = item['id']
         qty = int(item.get('qty') or 0)
@@ -2920,12 +3131,14 @@ def _restore_order_stock(db, stored_items):
         if qty < 1:
             continue
         db.execute("UPDATE products SET stock = stock + ? WHERE id=?", (qty, pid))
+        affected_product_ids.add(pid)
         if variation and ' / ' in variation:
             color, size = [p.strip() for p in variation.split(' / ', 1)]
             db.execute(
                 "UPDATE product_variants SET stock = stock + ? WHERE product_id=? AND color=? AND size=?",
                 (qty, pid, color, size)
             )
+    return list(affected_product_ids)
 
 
 def public_order_payload(order):
@@ -3311,7 +3524,7 @@ def cancel_order(oid):
         if fresh['payment_status'] in ('refunded', 'refund_pending'):
             db.rollback()
             return jsonify({'error': 'A refund is already completed or pending for this order.'}), 400
-        _restore_order_stock(db, items)
+        restocked_product_ids = _restore_order_stock(db, items)
         db.execute("UPDATE orders SET status='cancelled', payment_status='refund_pending', updated_at=datetime('now') WHERE id=?",
                    (order['id'],))
         # Remove the mirrored bookkeeping sale for this cancelled order (non-fatal).
@@ -3325,6 +3538,12 @@ def cancel_order(oid):
         db.rollback()
         log_security_event('order_cancel_failed', 'critical', 'Database error while cancelling order', email=order['customer_email'], metadata={'order_id': order['id']})
         return jsonify({'error': 'Could not cancel the order. Please contact support.'}), 500
+
+    for product_id in restocked_product_ids:
+        try:
+            notify_back_in_stock_for_product(db, product_id)
+        except Exception as exc:
+            app.logger.warning('back-in-stock notify after cancellation failed: %s', exc)
 
     pay_status = 'refund_pending'
     if payment_intent_id and _refund_payment_intent(payment_intent_id, amount_cents, 'Order cancellation refund', email=order['customer_email']):
@@ -4968,6 +5187,15 @@ ADMIN_EXPORTS = {
         'columns': ['id', 'name', 'sku', 'price', 'compare_price', 'cost_price', 'stock', 'low_stock_threshold',
                     'category', 'is_active', 'allow_custom_print', 'is_bestseller', 'created_at'],
     },
+    'back_in_stock': {
+        'filename': 'back_in_stock_requests',
+        'sql': """SELECT b.id,p.name AS product,p.sku,b.email,b.name,b.status,b.request_count,
+                 b.created_at,b.last_requested_at,b.notified_at
+                 FROM back_in_stock_requests b
+                 LEFT JOIN products p ON p.id=b.product_id
+                 ORDER BY COALESCE(b.notified_at,'') ASC, b.last_requested_at DESC""",
+        'columns': ['id', 'product', 'sku', 'email', 'name', 'status', 'request_count', 'created_at', 'last_requested_at', 'notified_at'],
+    },
     'inventory': {
         'filename': 'inventory',
         'sql': """SELECT id,name,sku,stock,cost_price,price,
@@ -6442,6 +6670,7 @@ accounts_module.register(app, {
     'bills_dir': ACC_BILLS_DIR, 'db_path': DB_PATH,
     'log_security_event': log_security_event,
     'log_audit_event': log_audit_event,
+    'notify_back_in_stock': notify_back_in_stock_for_product,
 })
 
 

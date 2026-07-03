@@ -378,6 +378,7 @@ def register(app, deps):
     DB_PATH = deps['db_path']
     log_security_event = deps.get('log_security_event')
     log_audit_event = deps.get('log_audit_event')
+    notify_back_in_stock = deps.get('notify_back_in_stock') or (lambda db, product_id: 0)
     owner_required = deps.get('admin_only_required', staff_required)
 
     def log_account_event(event_type, severity='info', message='', metadata=None):
@@ -407,6 +408,18 @@ def register(app, deps):
             )
         else:
             log_account_event(action, 'info', message, payload)
+
+    def notify_restocked_items(db, item_ids):
+        for item_id in sorted({i for i in item_ids if i}):
+            try:
+                notify_back_in_stock(db, item_id)
+            except Exception as exc:
+                log_account_event(
+                    'back_in_stock_notify_failed',
+                    'warning',
+                    'Back-in-stock notification failed after inventory update',
+                    {'item_id': item_id, 'error': str(exc)[:300]},
+                )
 
     os.makedirs(BILLS_DIR, exist_ok=True)
     init_accounts_schema(DB_PATH)
@@ -844,6 +857,8 @@ def register(app, deps):
             db.execute("INSERT INTO acc_stock_moves (id,item_id,change,reason,ref_type,ref_id) VALUES (?,?,?,?,?,?)",
                        (str(uuid.uuid4()), item_id, delta, 'Manual stock edit', 'adjustment', item_id))
         db.commit()
+        if (existing['stock'] or 0) <= 0 and total_stock > 0:
+            notify_restocked_items(db, [item_id])
         r = db.execute("SELECT p.*, NULL AS cat_name FROM products p WHERE id=?", (item_id,)).fetchone()
         audit_account_event(
             'inventory_item_updated',
@@ -1394,6 +1409,7 @@ def register(app, deps):
         total = write_purchase_lines(db, pid, lines)
         db.execute("UPDATE acc_purchases SET total=? WHERE id=?", (total, pid))
         db.commit()
+        notify_restocked_items(db, [li.get('item_id') for li in lines])
         audit_account_event('purchase_created', 'purchase', pid, 'Purchase created', after={'id': pid, 'total': total, 'vendor_id': data.get('vendor_id') or None}, metadata={'purchase_id': pid, 'vendor_id': data.get('vendor_id') or None})
         return jsonify({'purchase': purchase_detail(db, pid)}), 201
 
@@ -1416,6 +1432,7 @@ def register(app, deps):
         total = write_purchase_lines(db, pid, lines)
         db.execute("UPDATE acc_purchases SET total=? WHERE id=?", (total, pid))
         db.commit()
+        notify_restocked_items(db, [li.get('item_id') for li in lines])
         after = purchase_detail(db, pid)
         audit_account_event('purchase_updated', 'purchase', pid, 'Purchase updated', before=before, after=after, metadata={'purchase_id': pid, 'vendor_id': data.get('vendor_id') or None})
         return jsonify({'purchase': after})

@@ -49,6 +49,7 @@ Router.register('/admin/products', async () => {
         Products (${totalProducts})
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${Auth.isStrictAdmin() ? `<button class="btn btn-ghost" data-csp-onclick="Router.navigate('/admin/bulk-upload')"><i class="fas fa-file-import"></i> Bulk Upload</button>` : ''}
+          ${Auth.isStrictAdmin() ? `<button class="btn btn-ghost" data-csp-onclick="window.location.href='/api/admin/export/back_in_stock'"><i class="fas fa-envelope-open-text"></i> Restock List</button>` : ''}
           <button class="btn btn-primary" data-csp-onclick="openProductModal()"><i class="fas fa-plus"></i> Add Product</button>
           </div>
         </div>
@@ -68,6 +69,7 @@ Router.register('/admin/products', async () => {
                 ['no_image', 'No image', productHealth.no_image],
                 ['no_category', 'No category', productHealth.no_category],
                 ['no_cost', 'No cost price', productHealth.no_cost],
+                ['notify_waiting', 'Back-in-stock', productHealth.notify_waiting],
                 ['all', 'All', productHealth.all],
               ].map(([key, label, count]) => `
                 <button class="admin-filter-chip ${productFilter === key ? 'active' : ''}" data-csp-onclick="setProductFilter('${key}')">
@@ -123,7 +125,10 @@ Router.register('/admin/products', async () => {
         </td>
         <td>${esc(p.category_name || '-')}</td>
         <td>${fmt(p.price)}${p.compare_price > p.price ? `<br><small class="text-muted" style="text-decoration:line-through">${fmt(p.compare_price)}</small>` : ''}</td>
-        <td><span class="${p.stock <= 0 ? 'badge badge-cancelled' : p.stock <= 5 ? 'badge badge-pending' : 'badge badge-success'}">${p.stock <= 0 ? 'Out' : p.stock}</span></td>
+        <td>
+          <span class="${p.stock <= 0 ? 'badge badge-cancelled' : p.stock <= 5 ? 'badge badge-pending' : 'badge badge-success'}">${p.stock <= 0 ? 'Out' : p.stock}</span>
+          ${Number(p.back_in_stock_waiting || 0) > 0 ? `<div class="text-sm text-muted" style="margin-top:4px"><i class="fas fa-envelope"></i> ${Number(p.back_in_stock_waiting || 0)} waiting</div>` : ''}
+        </td>
         <td>${p.is_active ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-cancelled">Inactive</span>'}</td>
         <td>
           <div style="display:flex;gap:6px">
