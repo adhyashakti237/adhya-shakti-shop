@@ -4,7 +4,7 @@ function adminLayout(content, activePath) {
   const user = Auth.getUser();
 
   const allLinks = [
-    { href: '/admin',          icon: 'fa-tachometer-alt', label: 'Dashboard',  adminOnly: true },
+    { href: '/admin',          icon: 'fa-tachometer-alt', label: 'Shop Dashboard',  adminOnly: true },
     { href: '/admin/products', icon: 'fa-box',            label: 'Products'                   },
     { href: '/admin/categories', icon: 'fa-layer-group', label: 'Categories', adminOnly: true },
     { href: '/admin/bulk-upload', icon: 'fa-file-import', label: 'Bulk Upload', adminOnly: true },
@@ -27,7 +27,7 @@ function adminLayout(content, activePath) {
         <nav class="sidebar-links-row">${links.map(l => `<a href="${l.href}" data-link class="sidebar-link ${activePath === l.href ? 'active' : ''}"><i class="fas ${l.icon}"></i>${l.label}</a>`).join('')}</nav>
         <div class="sidebar-section-label" style="padding:10px 20px 4px;font-size:.62rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.3);margin-top:8px">Accounts &amp; Bookkeeping</div>
         <nav class="sidebar-links-row">
-          <a href="/admin/accounts" data-link class="sidebar-link ${activePath === '/admin/accounts' ? 'active' : ''}"><i class="fas fa-gauge-high"></i>Dashboard</a>
+          <a href="/admin/accounts" data-link class="sidebar-link ${activePath === '/admin/accounts' ? 'active' : ''}"><i class="fas fa-gauge-high"></i>Books Dashboard</a>
           <a href="/admin/accounts/sales" data-link class="sidebar-link ${activePath === '/admin/accounts/sales' ? 'active' : ''}"><i class="fas fa-receipt"></i>Sales</a>
           <a href="/admin/accounts/purchases" data-link class="sidebar-link ${activePath === '/admin/accounts/purchases' ? 'active' : ''}"><i class="fas fa-truck-ramp-box"></i>Purchases</a>
           <a href="/admin/accounts/inventory" data-link class="sidebar-link ${activePath === '/admin/accounts/inventory' ? 'active' : ''}"><i class="fas fa-boxes-stacked"></i>Inventory</a>
