@@ -17,7 +17,9 @@ Router.register('/admin/coupons', async () => {
         Coupons & Discounts
         <button class="btn btn-primary" data-csp-onclick="openCouponModal()"><i class="fas fa-plus"></i> Add Coupon</button>
       </div>
-      <div class="card"><div class="table-wrap"><table>
+      <div class="card">
+        <div class="admin-mobile-scroll-hint"><i class="fas fa-arrows-left-right"></i> Swipe sideways to view all columns</div>
+        <div class="table-wrap admin-wide-scroll admin-coupons-wrap"><table class="admin-wide-table admin-coupons-table">
         <thead><tr><th>Code</th><th>Type</th><th>Discount</th><th>Min Order</th><th>Used / Max</th><th>Expires</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>
           ${coupons.length ? coupons.map(c => `

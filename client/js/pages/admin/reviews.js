@@ -17,7 +17,9 @@ Router.register('/admin/reviews', async () => {
         <span>Reviews (${reviews.length})</span>
       </div>
       ${reviews.length ? `
-        <div class="card"><div class="table-wrap"><table>
+        <div class="card">
+          <div class="admin-mobile-scroll-hint"><i class="fas fa-arrows-left-right"></i> Swipe sideways to view all columns</div>
+          <div class="table-wrap admin-wide-scroll admin-reviews-wrap"><table class="admin-wide-table admin-reviews-table">
           <thead><tr>
             <th>Customer</th>
             <th>Product</th>
