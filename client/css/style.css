@@ -1944,6 +1944,111 @@ a.product-card { display: block; text-decoration: none; color: inherit; }
   font-weight: 650;
   padding: 4px 8px;
 }
+.admin-content .admin-work-queue {
+  background: #fff;
+  border: 1px solid #e7e5df;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(20,40,30,.05);
+}
+.admin-content .admin-work-queue-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.admin-content .admin-work-queue-head strong { display: block; color: #102f27; }
+.admin-content .admin-work-queue-head span { display: block; color: #667085; font-size: .84rem; margin-top: 2px; }
+.admin-content .admin-work-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+.admin-content .admin-work-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  border: 1px solid #eceae3;
+  border-radius: 12px;
+  padding: 12px;
+  text-align: left;
+  background: #fffdf8;
+  color: inherit;
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.admin-content .admin-work-card:hover,
+.admin-content .admin-work-card.active {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(20,40,30,.08);
+  border-color: rgba(29,92,74,.35);
+}
+.admin-content .admin-work-card > i {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.admin-content .admin-work-card.warn > i { background: #fff7ed; color: #b45309; }
+.admin-content .admin-work-card.danger > i { background: #fef2f2; color: #b91c1c; }
+.admin-content .admin-work-card.success > i { background: #ecfdf5; color: #047857; }
+.admin-content .admin-work-card strong { display: block; font-size: 1.08rem; color: #102f27; line-height: 1; }
+.admin-content .admin-work-card span { display: block; font-weight: 850; font-size: .84rem; margin-top: 3px; }
+.admin-content .admin-work-card small { display: block; color: #667085; font-size: .74rem; line-height: 1.35; margin-top: 4px; }
+.admin-content .admin-order-next-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid #dbe7e1;
+  border-radius: 10px;
+  background: #f6fbf8;
+  color: #245346;
+  padding: 10px 11px;
+  margin-top: 8px;
+  font-size: .82rem;
+  line-height: 1.4;
+}
+.admin-content .admin-order-next-step i { margin-top: 2px; flex-shrink: 0; }
+.admin-content .admin-order-next-step strong { display: block; color: inherit; }
+.admin-content .admin-order-next-step span { display: block; color: #667085; font-size: .78rem; margin-top: 2px; }
+.admin-content .admin-order-next-step.info { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+.admin-content .admin-order-next-step.warn { background: #fff7ed; border-color: #fed7aa; color: #b45309; }
+.admin-content .admin-order-next-step.danger { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+.admin-content .admin-order-next-step.success { background: #ecfdf5; border-color: #bbf7d0; color: #047857; }
+.admin-content .admin-order-next-step.compact {
+  padding: 6px 8px;
+  margin-top: 6px;
+  font-size: .74rem;
+}
+.admin-content .admin-order-action-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid #e7e5df;
+  border-radius: 12px;
+  background: #fbfaf7;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+.admin-content .admin-order-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+.admin-content .admin-order-quick-actions.compact {
+  gap: 6px;
+  display: inline-flex;
+}
 .admin-content .admin-wide-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -2814,6 +2919,22 @@ body:has(.sticky-atc.visible) .back-to-top { display: none; }
 }
 
 @media (max-width: 768px) {
+  .admin-content .admin-work-queue-head,
+  .admin-content .admin-order-action-panel {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+  .admin-content .admin-work-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-content .admin-order-quick-actions {
+    justify-content: flex-start;
+  }
+  .admin-content .admin-order-quick-actions .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
   .admin-content .admin-product-health {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

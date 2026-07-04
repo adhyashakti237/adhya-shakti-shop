@@ -3,7 +3,8 @@ Router.register('/admin/orders', async () => {
   adminLayout('<div class="spinner"></div>', '/admin/orders');
   const _gen = Router._gen;
 
-  let orders = [], filterStatus = new URLSearchParams(location.search || '').get('status') || '', searchTerm = '';
+  const initialParams = new URLSearchParams(location.search || '');
+  let orders = [], filterStatus = initialParams.get('status') || '', viewMode = initialParams.get('view') || '', searchTerm = '';
   const ATTENTION_PENDING_DAYS = 2;
 
   function ageDays(dateValue) {
@@ -31,6 +32,67 @@ Router.register('/admin/orders', async () => {
     return `<div class="admin-order-flags ${compact ? 'compact' : ''}">
       ${flags.map(f => `<span class="admin-order-flag ${f.tone}"><i class="fas ${f.icon}"></i>${esc(f.label)}</span>`).join('')}
     </div>`;
+  }
+
+  function orderNextStep(o) {
+    const status = String(o?.status || '').toLowerCase();
+    const payment = String(o?.payment_status || '').toLowerCase();
+    const tracking = String(o?.tracking_number || '').trim();
+    if (status === 'return_requested') return { tone: 'danger', icon: 'fa-undo-alt', label: 'Process return', note: 'Inspect the package, then choose full or 50% refund.' };
+    if (status === 'pending' && payment === 'paid') return { tone: 'info', icon: 'fa-box-open', label: 'Start processing', note: 'Move this paid order into processing when you begin preparing it.' };
+    if (status === 'pending') return { tone: 'warn', icon: 'fa-clock', label: 'Review payment', note: 'Check payment status before preparing this order.' };
+    if (status === 'processing') return { tone: 'info', icon: 'fa-truck-ramp-box', label: 'Pack and ship', note: 'Add tracking before marking it shipped.' };
+    if (status === 'shipped' && !tracking) return { tone: 'warn', icon: 'fa-truck', label: 'Add tracking', note: 'A shipped order should have a tracking number.' };
+    if (status === 'shipped') return { tone: 'info', icon: 'fa-house-circle-check', label: 'Watch delivery', note: 'Mark delivered after the carrier confirms delivery.' };
+    if (status === 'delivered' && !o.review_requested_at) return { tone: 'success', icon: 'fa-star', label: 'Request review', note: 'Send a review request after confirming the order is complete.' };
+    if (status === 'delivered') return { tone: 'success', icon: 'fa-check-circle', label: 'Complete', note: 'Order is delivered and review request was already sent.' };
+    if (status === 'cancelled') return { tone: 'danger', icon: 'fa-ban', label: 'Cancelled', note: 'No fulfillment action needed.' };
+    if (status === 'return_received') return { tone: 'info', icon: 'fa-box-open', label: 'Return received', note: 'Refund workflow has been handled or is pending.' };
+    return { tone: 'info', icon: 'fa-circle-info', label: 'Review order', note: 'Open details and confirm the next safe step.' };
+  }
+
+  function orderNextStepHtml(o, compact = false) {
+    const next = orderNextStep(o);
+    return `
+      <div class="admin-order-next-step ${next.tone} ${compact ? 'compact' : ''}">
+        <i class="fas ${next.icon}"></i>
+        <div><strong>${esc(next.label)}</strong>${compact ? '' : `<span>${esc(next.note)}</span>`}</div>
+      </div>`;
+  }
+
+  function quickActionButtons(o, compact = false) {
+    const status = String(o?.status || '').toLowerCase();
+    const buttons = [];
+    if (status === 'pending' && o.payment_status === 'paid') {
+      buttons.push(`<button class="btn btn-sm btn-primary" data-csp-onclick="quickOrderStatus('${o.id}','processing')"><i class="fas fa-box-open"></i>${compact ? '' : ' Start processing'}</button>`);
+    }
+    if (status === 'processing') {
+      buttons.push(`<button class="btn btn-sm btn-outline" data-csp-onclick="openOrderEditor('${o.id}')"><i class="fas fa-truck"></i>${compact ? '' : ' Add tracking / ship'}</button>`);
+    }
+    if (status === 'shipped' && String(o.tracking_number || '').trim()) {
+      buttons.push(`<button class="btn btn-sm btn-primary" data-csp-onclick="quickOrderStatus('${o.id}','delivered')"><i class="fas fa-check"></i>${compact ? '' : ' Mark delivered'}</button>`);
+    }
+    if (status === 'shipped' && !String(o.tracking_number || '').trim()) {
+      buttons.push(`<button class="btn btn-sm btn-outline" data-csp-onclick="openOrderEditor('${o.id}')"><i class="fas fa-truck"></i>${compact ? '' : ' Add tracking'}</button>`);
+    }
+    if (status === 'return_requested') {
+      buttons.push(`<button class="btn btn-sm" style="background:#c2410c;color:#fff;border:none" data-csp-onclick="openProcessReturn('${o.id}','${o.order_number}',${o.total})"><i class="fas fa-undo-alt"></i>${compact ? '' : ' Process return'}</button>`);
+    }
+    if (status === 'delivered' && !o.review_requested_at) {
+      buttons.push(`<button class="btn btn-sm btn-outline" data-csp-onclick="sendOrderEmail('${o.id}','review')"><i class="fas fa-star"></i>${compact ? '' : ' Request review'}</button>`);
+    }
+    return buttons.length ? `<div class="admin-order-quick-actions ${compact ? 'compact' : ''}">${buttons.join('')}</div>` : '';
+  }
+
+  function orderMatchesView(o) {
+    if (!viewMode) return true;
+    if (viewMode === 'attention') return orderAttentionFlags(o).length > 0;
+    if (viewMode === 'missing_tracking') return o.status === 'shipped' && !String(o.tracking_number || '').trim();
+    if (viewMode === 'old_pending') return o.status === 'pending' && ageDays(o.created_at) >= ATTENTION_PENDING_DAYS;
+    if (viewMode === 'ready_to_process') return o.status === 'pending' && o.payment_status === 'paid';
+    if (viewMode === 'ready_to_ship') return o.status === 'processing';
+    if (viewMode === 'review_requests') return o.status === 'delivered' && !o.review_requested_at;
+    return true;
   }
 
   function safeAddress(addr) {
@@ -148,7 +210,7 @@ Router.register('/admin/orders', async () => {
     const visibleOrders = orders.filter(o => {
       const itemText = (o.items || []).map(i => `${i.name || ''} ${i.variation || ''}`).join(' ');
       const haystack = `${o.order_number || ''} ${o.customer_name || ''} ${o.customer_email || ''} ${o.customer_phone || ''} ${o.status || ''} ${o.payment_status || ''} ${itemText}`.toLowerCase();
-      return !searchTerm || haystack.includes(searchTerm);
+      return orderMatchesView(o) && (!searchTerm || haystack.includes(searchTerm));
     });
     const counts = {
       pending: orders.filter(o => o.status === 'pending').length,
@@ -156,9 +218,35 @@ Router.register('/admin/orders', async () => {
       returns: orders.filter(o => o.status === 'return_requested').length,
       paid: orders.filter(o => o.payment_status === 'paid').length,
       attention: orders.filter(o => orderAttentionFlags(o).length).length,
+      missingTracking: orders.filter(o => o.status === 'shipped' && !String(o.tracking_number || '').trim()).length,
+      oldPending: orders.filter(o => o.status === 'pending' && ageDays(o.created_at) >= ATTENTION_PENDING_DAYS).length,
+      readyToProcess: orders.filter(o => o.status === 'pending' && o.payment_status === 'paid').length,
+      readyToShip: orders.filter(o => o.status === 'processing').length,
+      reviewRequests: orders.filter(o => o.status === 'delivered' && !o.review_requested_at).length,
     };
+    const workCards = [
+      { view: 'attention', count: counts.attention, label: 'Needs attention', note: 'Returns, old pending, missing tracking, and paid pending orders.', icon: 'fa-triangle-exclamation', tone: 'warn' },
+      { view: 'ready_to_process', count: counts.readyToProcess, label: 'Ready to process', note: 'Paid pending orders waiting for preparation.', icon: 'fa-box-open', tone: 'info' },
+      { view: 'ready_to_ship', count: counts.readyToShip, label: 'Ready to ship', note: 'Processing orders that need tracking and shipment.', icon: 'fa-truck-ramp-box', tone: 'info' },
+      { view: 'missing_tracking', count: counts.missingTracking, label: 'Missing tracking', note: 'Shipped orders without tracking numbers.', icon: 'fa-truck', tone: 'warn' },
+      { view: 'review_requests', count: counts.reviewRequests, label: 'Review requests', note: 'Delivered orders still waiting for review request email.', icon: 'fa-star', tone: 'success' },
+      { view: 'old_pending', count: counts.oldPending, label: 'Old pending', note: `Pending orders older than ${ATTENTION_PENDING_DAYS} days.`, icon: 'fa-calendar-xmark', tone: 'danger' },
+    ];
     document.querySelector('.admin-content').innerHTML = `
       <div class="admin-page-title">Orders (${visibleOrders.length}${visibleOrders.length !== orders.length ? ` of ${orders.length}` : ''})</div>
+      <div class="admin-work-queue">
+        <div class="admin-work-queue-head">
+          <div><strong>Order work queue</strong><span>Use these shortcuts to work the next safest order actions.</span></div>
+          ${viewMode ? `<button class="btn btn-sm btn-outline" data-csp-onclick="setOrderView('')"><i class="fas fa-xmark"></i> Clear queue filter</button>` : ''}
+        </div>
+        <div class="admin-work-grid">
+          ${workCards.map(c => `
+            <button class="admin-work-card ${c.tone} ${viewMode === c.view ? 'active' : ''}" data-csp-onclick="setOrderView('${c.view}')">
+              <i class="fas ${c.icon}"></i>
+              <div><strong>${Number(c.count || 0)}</strong><span>${esc(c.label)}</span><small>${esc(c.note)}</small></div>
+            </button>`).join('')}
+        </div>
+      </div>
       <div class="admin-order-summary-grid">
         <div><i class="fas fa-clock"></i><strong>${counts.pending}</strong><span>Pending</span></div>
         <div><i class="fas fa-box"></i><strong>${counts.processing}</strong><span>Processing</span></div>
@@ -170,7 +258,7 @@ Router.register('/admin/orders', async () => {
         <div class="card-body" style="padding-bottom:0">
           <div class="flex-between" style="gap:12px;flex-wrap:wrap;margin-bottom:14px">
             <input class="form-control" id="admin-order-search" value="${esc(searchTerm)}" placeholder="Search order, customer, phone, product..." style="max-width:380px" data-csp-oninput="searchAdminOrders()" />
-            <div class="text-muted text-sm">${filterStatus ? `Filtered by ${esc(filterStatus.replace('_',' '))}` : 'Showing all order statuses'}</div>
+            <div class="text-muted text-sm">${filterStatus ? `Status: ${esc(filterStatus.replace('_',' '))}` : 'All statuses'}${viewMode ? ` · Queue: ${esc(viewMode.replace(/_/g, ' '))}` : ''}</div>
           </div>
           <div class="tabs" style="margin-bottom:0;flex-wrap:wrap">
             ${[
@@ -190,7 +278,7 @@ Router.register('/admin/orders', async () => {
         </div>
         <div class="admin-mobile-scroll-hint"><i class="fas fa-arrows-left-right"></i> Swipe sideways to view all columns</div>
         <div class="table-wrap admin-wide-scroll"><table class="admin-wide-table">
-          <thead><tr><th>Order #</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th>Flags</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Order #</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th>Next step</th><th>Actions</th></tr></thead>
           <tbody>
             ${visibleOrders.length ? visibleOrders.map(o => `
               <tr style="${o.status==='return_requested'?'background:#fff7ed':''}">
@@ -206,15 +294,15 @@ Router.register('/admin/orders', async () => {
                 <td data-label="Total"><span class="admin-td-value" style="font-weight:700">${fmt(o.total)}</span></td>
                 <td data-label="Payment"><span class="admin-td-value">${statusBadge(o.payment_status)}</span></td>
                 <td data-label="Status"><span class="admin-td-value">${statusBadge(o.status)}</span></td>
-                <td data-label="Flags"><span class="admin-td-value">${orderFlagsHtml(o, true) || '<span class="text-muted text-sm">None</span>'}</span></td>
+                <td data-label="Next step"><div class="admin-td-value">${orderFlagsHtml(o, true)}${orderNextStepHtml(o, true)}</div></td>
                 <td data-label="Actions">
                   <div class="admin-td-value" style="display:flex;gap:6px;flex-wrap:wrap">
                     <button class="btn btn-sm btn-ghost" data-csp-onclick="viewOrderAdmin('${o.id}')" aria-label="View order ${o.order_number}"><i class="fas fa-eye"></i></button>
                     <button class="btn btn-sm btn-outline" data-csp-onclick="editOrderStatus('${o.id}')" aria-label="Edit order ${esc(o.order_number)} status"><i class="fas fa-edit"></i></button>
+                    ${quickActionButtons(o, true)}
                     ${['pending','processing'].includes(o.status) && !['refunded','refund_pending'].includes(o.payment_status)
                       ? `<button class="btn btn-sm" style="background:var(--danger);color:#fff;border:none" data-csp-onclick="cancelOrderAdmin('${o.id}','${o.order_number}')"><i class="fas fa-ban"></i> Cancel</button>`
                       : ''}
-                    ${o.status==='return_requested'?`<button class="btn btn-sm" style="background:#c2410c;color:#fff;border:none" data-csp-onclick="openProcessReturn('${o.id}','${o.order_number}',${o.total})"><i class="fas fa-undo-alt"></i> Process Return</button>`:''}
                   </div>
                 </td>
               </tr>`).join('') : '<tr><td colspan="9" class="text-center text-muted" style="padding:32px">No orders found</td></tr>'}
@@ -223,7 +311,15 @@ Router.register('/admin/orders', async () => {
       </div>`;
   }
 
-  window.changeStatusFilter = (s) => { filterStatus = s; loadOrders(); };
+  window.changeStatusFilter = (s) => {
+    filterStatus = s;
+    viewMode = '';
+    loadOrders();
+  };
+  window.setOrderView = (mode) => {
+    viewMode = mode || '';
+    renderOrders();
+  };
   window.searchAdminOrders = () => {
     const input = document.getElementById('admin-order-search');
     const caret = input?.selectionStart ?? String(input?.value || '').length;
@@ -233,6 +329,34 @@ Router.register('/admin/orders', async () => {
     if (next) {
       next.focus();
       next.setSelectionRange(Math.min(caret, next.value.length), Math.min(caret, next.value.length));
+    }
+  };
+
+  window.quickOrderStatus = async (id, nextStatus) => {
+    const order = orders.find(o => o.id === id);
+    if (!order) return;
+    const labels = {
+      processing: 'move this order to Processing',
+      delivered: 'mark this order Delivered',
+    };
+    if (nextStatus === 'shipped' && !String(order.tracking_number || '').trim()) {
+      toast('Add tracking before marking an order shipped.', 'warning');
+      editOrderStatus(id);
+      return;
+    }
+    if (!confirm(`Are you sure you want to ${labels[nextStatus] || 'update this order'}? This can send a customer status email.`)) return;
+    try {
+      await api.put(`/admin/orders/${id}`, {
+        status: nextStatus,
+        payment_status: order.payment_status || 'paid',
+        tracking_number: order.tracking_number || '',
+        notes: order.notes || '',
+      });
+      toast('Order updated', 'success');
+      closeModal();
+      await loadOrders();
+    } catch (e) {
+      toast(e.message || 'Could not update order', 'error');
     }
   };
 
@@ -258,6 +382,11 @@ Router.register('/admin/orders', async () => {
     const o = orders.find(x => x.id === id);
     if (!o) return;
     printOrderDocument(o, 'invoice');
+  };
+
+  window.openOrderEditor = (id) => {
+    closeModal();
+    setTimeout(() => window.editOrderStatus(id), 0);
   };
 
   window.sendOrderEmail = async (id, kind) => {
@@ -292,6 +421,13 @@ Router.register('/admin/orders', async () => {
           <div><span>Total</span><strong>${fmt(o.total)}</strong></div>
         </div>
         <div style="margin:12px 0 16px">${orderFlagsHtml(o)}</div>
+        <div class="admin-order-action-panel">
+          <div>
+            <div class="admin-order-block-title" style="margin-bottom:6px"><i class="fas fa-list-check"></i> Recommended next step</div>
+            ${orderNextStepHtml(o)}
+          </div>
+          ${quickActionButtons(o)}
+        </div>
         <div class="grid-2 admin-order-detail-grid" style="gap:16px;margin-bottom:16px">
           ${contactHtml(o)}
           ${addressHtml(addr)}
