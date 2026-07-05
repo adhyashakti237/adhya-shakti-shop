@@ -351,8 +351,10 @@ def _send_email_bg(from_addr, from_pass, to_addr, subject, html):
         with smtplib.SMTP(_SMTP_HOST, _SMTP_PORT, timeout=10) as s:
             s.ehlo(); s.starttls(); s.login(from_addr, from_pass)
             s.sendmail(from_addr, [to_addr], msg.as_string())
+        return True
     except Exception as exc:
         app.logger.error('Email failed to %s: %s', to_addr, exc)
+        return False
 
 
 def send_email(from_addr, from_pass, to_addr, subject, html):
@@ -430,7 +432,7 @@ def email_welcome_discount(to_email, code):
                'Your 10% Off Welcome Code - Adhya Shakti Shop', html)
 
 
-def email_back_in_stock(to_email, name, product):
+def _build_back_in_stock_email(name, product):
     product_id = product.get('id') or ''
     product_name = product.get('name') or 'Your saved product'
     product_url = f'https://adhyashaktishop.com/product/{quote(str(product_id))}'
@@ -460,8 +462,13 @@ def email_back_in_stock(to_email, name, product):
   <a href="{h(product_url)}" class="cta">View Product</a>
 </div>
 <p class="muted">You received this because you requested a back-in-stock notification for this product.</p>""", f'{product_name} is available again.')
-    send_email(CONTACT_MAIL_USER, CONTACT_MAIL_PASS, to_email,
-               f'{product_name} is back in stock - Adhya Shakti Shop', html)
+    subject = f'{product_name} is back in stock - Adhya Shakti Shop'
+    return subject, html
+
+
+def email_back_in_stock(to_email, name, product):
+    subject, html = _build_back_in_stock_email(name, product)
+    send_email(CONTACT_MAIL_USER, CONTACT_MAIL_PASS, to_email, subject, html)
 
 
 def email_password_reset(name, to_email, reset_link):
@@ -2498,25 +2505,63 @@ def notify_back_in_stock_for_product(db, product_id):
     if not requests:
         return 0
 
-    now = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-    db.executemany(
-        "UPDATE back_in_stock_requests SET status='notified', notified_at=? WHERE id=?",
-        [(now, r['id']) for r in requests]
-    )
-    db.commit()
-
     product = _product_public_payload(product_row)
-    for req in requests:
-        email_back_in_stock(req['email'], req['name'] or '', product)
+    pending = [(r['id'], r['email'], r['name'] or '') for r in requests]
+    # Deliver in the background and mark each request notified only after its
+    # email actually sends, so a mail-server hiccup cannot silently drop
+    # notifications — anything unsent stays pending and retries on the next restock.
+    threading.Thread(
+        target=_deliver_back_in_stock_notifications,
+        args=(product_id, product, pending),
+        daemon=True,
+    ).start()
 
     if has_request_context():
         log_security_event(
             'back_in_stock_notified',
             'info',
-            f'Sent {len(requests)} back-in-stock notification(s)',
-            metadata={'product_id': product_id, 'product_name': product.get('name'), 'count': len(requests)},
+            f'Queued {len(pending)} back-in-stock notification(s)',
+            metadata={'product_id': product_id, 'product_name': product.get('name'), 'count': len(pending)},
         )
-    return len(requests)
+    return len(pending)
+
+
+def _deliver_back_in_stock_notifications(product_id, product, pending):
+    if not pending or not CONTACT_MAIL_PASS:
+        return 0
+    sent = 0
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=15)
+        now = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        for req_id, email, name in pending:
+            # Claim this request atomically so a second delivery pass cannot
+            # double-send it; revert to pending if the email does not go out.
+            claimed = conn.execute(
+                "UPDATE back_in_stock_requests SET status='notified', notified_at=? "
+                "WHERE id=? AND notified_at IS NULL",
+                (now, req_id),
+            )
+            conn.commit()
+            if claimed.rowcount == 0:
+                continue
+            subject, html = _build_back_in_stock_email(name, product)
+            if _send_email_bg(CONTACT_MAIL_USER, CONTACT_MAIL_PASS, email, subject, html):
+                sent += 1
+            else:
+                conn.execute(
+                    "UPDATE back_in_stock_requests SET status='pending', notified_at=NULL WHERE id=?",
+                    (req_id,),
+                )
+                conn.commit()
+    except Exception as exc:
+        app.logger.error('back-in-stock delivery failed for product %s: %s', product_id, exc)
+    finally:
+        if conn is not None:
+            conn.close()
+    if sent < len(pending):
+        app.logger.warning('back-in-stock: sent %s of %s for product %s (unsent remain pending)', sent, len(pending), product_id)
+    return sent
 
 
 def _clean_optional_money(value):

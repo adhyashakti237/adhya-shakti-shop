@@ -97,6 +97,7 @@
     'restoreDrillBackup',
     'refreshSecurityPage',
     'reviewLowRiskSecurityEvents',
+    'requestBackInStock',
     'saveCoupon',
     'saveEditUser',
     'saveNewUser',
