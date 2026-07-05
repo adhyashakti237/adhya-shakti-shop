@@ -208,8 +208,8 @@ def _content_security_policy(allow_inline=True, report_only=False):
     directives = [
         "default-src 'self'",
         # Fallback for older CSP engines. CSP3 engines use script-src-elem/attr below.
-        f"script-src 'self' https://js.stripe.com{script_fallback_inline}",
-        "script-src-elem 'self' https://js.stripe.com",
+        f"script-src 'self' https://js.stripe.com https://static.cloudflareinsights.com{script_fallback_inline}",
+        "script-src-elem 'self' https://js.stripe.com https://static.cloudflareinsights.com",
         f"script-src-attr {script_attr}",
         "style-src 'self' https://cdnjs.cloudflare.com https://fonts.googleapis.com 'unsafe-inline'",
         "style-src-elem 'self' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
@@ -217,7 +217,7 @@ def _content_security_policy(allow_inline=True, report_only=False):
         "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:",
         "img-src 'self' data: blob: https:",
         "media-src 'self' blob:",
-        "connect-src 'self' https://api.stripe.com https://checkout.stripe.com https://r.stripe.com https://m.stripe.network",
+        "connect-src 'self' https://api.stripe.com https://checkout.stripe.com https://r.stripe.com https://m.stripe.network https://cloudflareinsights.com",
         "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
         "object-src 'none'",
         "base-uri 'self'",
