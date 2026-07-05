@@ -1271,6 +1271,61 @@ a.product-card { display: block; text-decoration: none; color: inherit; }
   background: #fffdf8;
 }
 .cart-empty-trust i { color: var(--primary); }
+.merch-section {
+  margin-top: 48px;
+}
+.cart-empty-pro + .merch-section,
+.wishlist-empty-pro + .merch-section {
+  max-width: 1180px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.merch-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.merch-section-head h2 {
+  margin: 0 0 5px;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+.merch-section-head p {
+  margin: 0;
+  color: var(--text-light);
+  line-height: 1.5;
+  max-width: 620px;
+  font-size: .92rem;
+}
+.merch-grid {
+  align-items: stretch;
+}
+.merch-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  border: 1px dashed #ded7ca;
+  border-radius: 16px;
+  background: #fffdf8;
+  color: var(--text-light);
+  padding: 34px 18px;
+}
+.merch-empty i {
+  color: var(--primary);
+  font-size: 1.5rem;
+  margin-bottom: 10px;
+}
+.merch-empty h3 {
+  margin: 0 0 6px;
+  color: var(--text);
+  font-size: 1rem;
+}
+.merch-empty p {
+  margin: 0;
+  font-size: .9rem;
+}
 .wishlist-heading {
   display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap;
   margin: 16px 0 24px;
@@ -2746,6 +2801,24 @@ body:has(.sticky-atc.visible) .back-to-top { display: none; }
   .product-detail-info .btn-lg { min-height: 46px; }
   .cart-empty-pro,
   .wishlist-empty-pro { border-radius: 16px; padding: 34px 18px; }
+  .merch-section { margin-top: 34px; }
+  .merch-section-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 13px;
+  }
+  .merch-section-head h2 {
+    font-size: 1.14rem;
+    line-height: 1.25;
+  }
+  .merch-section-head p {
+    font-size: .86rem;
+    line-height: 1.55;
+  }
+  .merch-section-head .btn {
+    min-height: 38px;
+  }
   .cart-empty-trust,
   .product-confidence-panel { grid-template-columns: 1fr; }
   .cart-empty-trust span,

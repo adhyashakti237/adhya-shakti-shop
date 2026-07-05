@@ -344,12 +344,27 @@ Router.register('/product/:id', async (params) => {
           </div>
 
           <!-- Complete the Look -->
-          <div class="section" id="ctl-section" style="${p.category_id ? '' : 'display:none'}">
-            <div class="flex-between mb-16">
-              <h2 style="font-size:1.4rem;font-weight:700">Complete the Look</h2>
+          <div class="section merch-section" id="ctl-section" style="${p.category_id ? '' : 'display:none'}">
+            <div class="merch-section-head">
+              <div>
+                <h2>Complete the Look</h2>
+                <p>Similar picks from this category that pair well with what you are viewing.</p>
+              </div>
               <a href="/products${p.category_id ? '?category=' + p.category_id : ''}" data-link class="btn btn-ghost btn-sm">View All <i class="fas fa-arrow-right" style="font-size:.75rem"></i></a>
             </div>
-            <div id="ctl-products" class="grid-4"><div class="spinner"></div></div>
+            <div id="ctl-products" class="grid-4 merch-grid"><div class="spinner"></div></div>
+          </div>
+
+          <!-- Recently Viewed -->
+          <div class="section merch-section" id="recent-product-section">
+            <div class="merch-section-head">
+              <div>
+                <h2>Recently Viewed</h2>
+                <p>Products you looked at recently, kept here so you can compare without searching again.</p>
+              </div>
+              <a href="/products" data-link class="btn btn-ghost btn-sm">Browse All <i class="fas fa-arrow-right" style="font-size:.75rem"></i></a>
+            </div>
+            <div id="recent-product-rail" class="grid-4 merch-grid"><div class="spinner"></div></div>
           </div>
 
           <!-- Reviews -->
@@ -388,20 +403,26 @@ Router.register('/product/:id', async (params) => {
 
     // ── Complete the Look ─────────────────────────────────────────────────────
     if (p.category_id) {
-      api.get(`/products?category=${p.category_id}&per_page=8&sort=newest`).then(({ products: rel }) => {
-        const filtered = rel.filter(rp => String(rp.id) !== String(p.id)).slice(0, 4);
-        const ctlEl = document.getElementById('ctl-products');
-        if (ctlEl) {
-          ctlEl.innerHTML = filtered.length
-            ? filtered.map(productCard).join('')
-            : '<div class="empty-state" style="grid-column:1/-1;padding:32px 0"><p class="text-muted">No other products found in this category.</p></div>';
-        }
-      }).catch(() => {
-        const ctlEl = document.getElementById('ctl-products');
-        if (ctlEl) ctlEl.innerHTML = '';
-        document.getElementById('ctl-section')?.style?.setProperty('display', 'none');
+      fillProductRail('ctl-products', {
+        categoryId: p.category_id,
+        excludeIds: [p.id],
+        includeRecent: false,
+        fallbackNewest: false,
+        limit: 4,
+        emptyHtml: '<div class="merch-empty"><i class="fas fa-box-open"></i><h3>No matching products yet</h3><p>New items are being added to this category.</p></div>',
+      }).then(items => {
+        if (!items.length) document.getElementById('ctl-section')?.style?.setProperty('display', 'none');
       });
     }
+    fillProductRail('recent-product-rail', {
+      excludeIds: [p.id],
+      includeRecent: true,
+      fallbackNewest: false,
+      limit: 4,
+      emptyHtml: '<div class="merch-empty"><i class="fas fa-clock"></i><h3>No recent products yet</h3><p>Browse a few products and they will appear here.</p></div>',
+    }).then(items => {
+      if (!items.length) document.getElementById('recent-product-section')?.style?.setProperty('display', 'none');
+    });
 
     // ── Sticky Add-to-Cart bar ────────────────────────────────────────────────
     const stickyBar = document.createElement('div');

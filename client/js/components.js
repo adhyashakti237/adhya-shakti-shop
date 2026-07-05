@@ -390,6 +390,65 @@ function productCard(p) {
     </a>`;
 }
 
+function getRecentlyViewedProducts(limit = 4, excludeIds = []) {
+  const exclude = new Set((excludeIds || []).map(id => String(id)));
+  try {
+    const list = JSON.parse(localStorage.getItem('recently_viewed') || '[]');
+    return (Array.isArray(list) ? list : [])
+      .filter(p => p && p.id && !exclude.has(String(p.id)))
+      .map(p => ({
+        ...p,
+        images: p.images || (p.image ? [p.image] : []),
+        stock: p.stock === undefined ? 1 : p.stock,
+      }))
+      .slice(0, limit);
+  } catch {
+    return [];
+  }
+}
+
+async function fillProductRail(targetId, opts = {}) {
+  const el = document.getElementById(targetId);
+  if (!el) return [];
+
+  const limit = opts.limit || 4;
+  const exclude = new Set((opts.excludeIds || []).map(id => String(id)));
+  const seen = new Set(exclude);
+  const products = [];
+  const addProducts = (items = []) => {
+    items.forEach(p => {
+      if (!p?.id || seen.has(String(p.id)) || products.length >= limit) return;
+      seen.add(String(p.id));
+      products.push(p);
+    });
+  };
+
+  if (opts.includeRecent !== false) {
+    addProducts(getRecentlyViewedProducts(limit, [...exclude]));
+  }
+
+  const loadUrl = async (url) => {
+    try {
+      const res = await api.get(url);
+      addProducts(res.products || []);
+    } catch {}
+  };
+
+  if (products.length < limit && opts.categoryId) {
+    await loadUrl(`/products?category=${encodeURIComponent(opts.categoryId)}&per_page=${Math.max(8, limit * 2)}&sort=newest`);
+  }
+  if (products.length < limit && opts.fallbackNewest !== false) {
+    await loadUrl(`/products?per_page=${Math.max(8, limit * 2)}&sort=newest`);
+  }
+
+  const freshEl = document.getElementById(targetId);
+  if (!freshEl) return products;
+  freshEl.innerHTML = products.length
+    ? products.slice(0, limit).map(productCard).join('')
+    : (opts.emptyHtml || '<div class="merch-empty"><i class="fas fa-store"></i><h3>More products coming soon</h3><p>Check back soon for new arrivals.</p></div>');
+  return products;
+}
+
 function openModal(html) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';

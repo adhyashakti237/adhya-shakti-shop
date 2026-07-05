@@ -19,7 +19,22 @@ Router.register('/wishlist', async () => {
             <a href="/jewelry" data-link class="btn btn-outline"><i class="fas fa-gem"></i> Jewelry</a>
           </div>
         </div>
+        <div class="merch-section">
+          <div class="merch-section-head">
+            <div>
+              <h2>Products to Explore</h2>
+              <p>Recent views and new arrivals, so you can start saving favorites.</p>
+            </div>
+            <a href="/products" data-link class="btn btn-ghost btn-sm">Browse All <i class="fas fa-arrow-right" style="font-size:.75rem"></i></a>
+          </div>
+          <div id="empty-wishlist-products" class="grid-4 merch-grid"><div class="spinner"></div></div>
+        </div>
       </div>`;
+    fillProductRail('empty-wishlist-products', {
+      includeRecent: true,
+      fallbackNewest: true,
+      limit: 4,
+    });
     return;
   }
 
@@ -68,12 +83,15 @@ Router.register('/wishlist', async () => {
         </div>
 
         <!-- You May Also Like -->
-        <div style="margin-top:56px">
-          <div class="flex-between mb-16">
-            <h2 style="font-size:1.4rem;font-weight:700">You May Also Like</h2>
+        <div class="merch-section" style="margin-top:56px">
+          <div class="merch-section-head">
+            <div>
+              <h2>You May Also Like</h2>
+              <p>New and recently viewed products that are not already saved here.</p>
+            </div>
             <a href="/products" data-link class="btn btn-ghost btn-sm">View All <i class="fas fa-arrow-right" style="font-size:.75rem"></i></a>
           </div>
-          <div id="ymal-products" class="grid-4"><div class="spinner"></div></div>
+          <div id="ymal-products" class="grid-4 merch-grid"><div class="spinner"></div></div>
         </div>
       </div>
     </div>`;
@@ -98,24 +116,10 @@ Router.register('/wishlist', async () => {
     });
   });
 
-  // Load suggested products — prefer products from wishlist categories, fall back to newest
-  try {
-    const wishIds = new Set(items.map(i => String(i.id)));
-    let suggestions = [];
-
-    // Try to get products from the same category as the first wishlist item
-    // We don't store category_id in wishlist, so just fetch newest and filter
-    const { products } = await api.get('/products?per_page=12&sort=newest');
-    suggestions = products.filter(p => !wishIds.has(String(p.id))).slice(0, 4);
-
-    const el = document.getElementById('ymal-products');
-    if (el) {
-      el.innerHTML = suggestions.length
-        ? suggestions.map(productCard).join('')
-        : '<div class="empty-state" style="grid-column:1/-1;padding:32px 0"><i class="fas fa-store"></i><h3>Check back soon</h3><p>New products are being added</p></div>';
-    }
-  } catch {
-    const el = document.getElementById('ymal-products');
-    if (el) el.innerHTML = '';
-  }
+  fillProductRail('ymal-products', {
+    excludeIds: items.map(i => i.id),
+    includeRecent: true,
+    fallbackNewest: true,
+    limit: 4,
+  });
 });

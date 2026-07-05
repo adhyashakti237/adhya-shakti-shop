@@ -55,7 +55,22 @@ Router.register('/cart', async () => {
             <span><i class="fas fa-envelope"></i> Support before and after purchase</span>
           </div>
         </div>
+        <div class="merch-section">
+          <div class="merch-section-head">
+            <div>
+              <h2>Start With These Picks</h2>
+              <p>Recently viewed and new products, ready when you are.</p>
+            </div>
+            <a href="/products" data-link class="btn btn-ghost btn-sm">Browse All <i class="fas fa-arrow-right" style="font-size:.75rem"></i></a>
+          </div>
+          <div id="empty-cart-products" class="grid-4 merch-grid"><div class="spinner"></div></div>
+        </div>
       </div>`;
+      fillProductRail('empty-cart-products', {
+        includeRecent: true,
+        fallbackNewest: true,
+        limit: 4,
+      });
       return;
     }
 
@@ -149,8 +164,24 @@ Router.register('/cart', async () => {
               <div class="text-center text-sm text-muted mt-16"><i class="fas fa-shield-alt"></i> Secure Checkout</div>
             </div>
           </div>
+          <div class="merch-section">
+            <div class="merch-section-head">
+              <div>
+                <h2>Complete Your Cart</h2>
+                <p>Add a matching item now, or continue securely with what you already picked.</p>
+              </div>
+              <a href="/products" data-link class="btn btn-ghost btn-sm">More Products <i class="fas fa-arrow-right" style="font-size:.75rem"></i></a>
+            </div>
+            <div id="cart-suggestions" class="grid-4 merch-grid"><div class="spinner"></div></div>
+          </div>
         </div>
       </div>`;
+    fillProductRail('cart-suggestions', {
+      excludeIds: items.map(i => i.id),
+      includeRecent: true,
+      fallbackNewest: true,
+      limit: 4,
+    });
     document.getElementById('cart-items')?.addEventListener('click', handleCartClick);
     document.getElementById('cart-items')?.addEventListener('change', handleCartChange);
     document.getElementById('apply-welcome-cart')?.addEventListener('click', () => {
