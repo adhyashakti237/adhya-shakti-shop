@@ -1367,6 +1367,8 @@ def init_db():
     # Column migrations (safe — ignored if column already exists)
     for migration in [
         "ALTER TABLE products ADD COLUMN is_bestseller INTEGER DEFAULT 0",
+        "ALTER TABLE products ADD COLUMN cost_price REAL DEFAULT 0",
+        "ALTER TABLE products ADD COLUMN low_stock_threshold REAL DEFAULT 5",
         "ALTER TABLE reviews ADD COLUMN images TEXT DEFAULT '[]'",
     ]:
         try:
@@ -2529,7 +2531,9 @@ def _clean_optional_money(value):
 
 def product_audit_snapshot(db, pid):
     row = db.execute(
-        "SELECT id,name,price,compare_price,category_id,stock,sku,is_active,allow_custom_print,is_bestseller FROM products WHERE id=?",
+        """SELECT id,name,price,compare_price,cost_price,category_id,stock,low_stock_threshold,
+                  sku,is_active,allow_custom_print,is_bestseller
+           FROM products WHERE id=?""",
         (pid,)
     ).fetchone()
     return dict(row) if row else None
@@ -2551,6 +2555,29 @@ def _admin_product_health(db):
                OR NOT EXISTS (SELECT 1 FROM categories c WHERE c.id=p.category_id)
         """),
         'no_cost': one("SELECT COUNT(*) FROM products WHERE IFNULL(cost_price,0)<=0"),
+        'low_stock': one("""
+            SELECT COUNT(*) FROM products
+            WHERE IFNULL(is_active,1)=1
+              AND IFNULL(stock,0)>0
+              AND IFNULL(stock,0)<=IFNULL(low_stock_threshold,5)
+        """),
+        'duplicate_name': one("""
+            SELECT COUNT(*) FROM products p
+            WHERE LOWER(TRIM(IFNULL(p.name,''))) IN (
+                SELECT LOWER(TRIM(IFNULL(name,''))) FROM products
+                WHERE TRIM(IFNULL(name,''))!=''
+                GROUP BY LOWER(TRIM(IFNULL(name,''))) HAVING COUNT(*)>1
+            )
+        """),
+        'duplicate_sku': one("""
+            SELECT COUNT(*) FROM products p
+            WHERE TRIM(IFNULL(p.sku,''))!=''
+              AND LOWER(TRIM(p.sku)) IN (
+                SELECT LOWER(TRIM(sku)) FROM products
+                WHERE TRIM(IFNULL(sku,''))!=''
+                GROUP BY LOWER(TRIM(sku)) HAVING COUNT(*)>1
+              )
+        """),
         'notify_waiting': one("SELECT COUNT(*) FROM back_in_stock_requests WHERE notified_at IS NULL"),
     }
 
@@ -2581,6 +2608,29 @@ def admin_products_list():
         )""")
     elif status == 'no_cost':
         where.append("IFNULL(p.cost_price,0)<=0")
+    elif status == 'low_stock':
+        where.append("""
+            IFNULL(p.is_active,1)=1
+            AND IFNULL(p.stock,0)>0
+            AND IFNULL(p.stock,0)<=IFNULL(p.low_stock_threshold,5)
+        """)
+    elif status == 'duplicate_name':
+        where.append("""
+            LOWER(TRIM(IFNULL(p.name,''))) IN (
+                SELECT LOWER(TRIM(IFNULL(name,''))) FROM products
+                WHERE TRIM(IFNULL(name,''))!=''
+                GROUP BY LOWER(TRIM(IFNULL(name,''))) HAVING COUNT(*)>1
+            )
+        """)
+    elif status == 'duplicate_sku':
+        where.append("""
+            TRIM(IFNULL(p.sku,''))!=''
+            AND LOWER(TRIM(p.sku)) IN (
+                SELECT LOWER(TRIM(sku)) FROM products
+                WHERE TRIM(IFNULL(sku,''))!=''
+                GROUP BY LOWER(TRIM(sku)) HAVING COUNT(*)>1
+            )
+        """)
     elif status == 'notify_waiting':
         where.append("""
             EXISTS (
@@ -2599,7 +2649,13 @@ def admin_products_list():
     rows = rows_to_list(db.execute(
         f"""SELECT p.*, c.name AS category_name,
                    (SELECT COUNT(*) FROM back_in_stock_requests bis
-                    WHERE bis.product_id=p.id AND bis.notified_at IS NULL) AS back_in_stock_waiting
+                    WHERE bis.product_id=p.id AND bis.notified_at IS NULL) AS back_in_stock_waiting,
+                   (SELECT COUNT(*) FROM products pn
+                    WHERE TRIM(IFNULL(pn.name,''))!=''
+                      AND LOWER(TRIM(pn.name))=LOWER(TRIM(IFNULL(p.name,'')))) AS duplicate_name_count,
+                   (SELECT COUNT(*) FROM products ps
+                    WHERE TRIM(IFNULL(ps.sku,''))!=''
+                      AND LOWER(TRIM(ps.sku))=LOWER(TRIM(IFNULL(p.sku,'')))) AS duplicate_sku_count
             FROM products p
             LEFT JOIN categories c ON c.id=p.category_id
             {where_sql}
@@ -2661,12 +2717,17 @@ def create_product():
     category_id = clean_text(data.get('category_id'), 80) or None
     if category_id and not db.execute("SELECT id FROM categories WHERE id=?", (category_id,)).fetchone():
         return jsonify({'error': 'Selected category was not found'}), 400
+    cost_price = _clean_optional_money(data.get('cost_price')) or 0
+    low_stock_threshold = _clean_product_stock(data.get('low_stock_threshold', 5))
     variants = _clean_product_variants(data.get('variants', []))
     total_stock = sum(int(v.get('stock', 0)) for v in variants) if variants else _clean_product_stock(data.get('stock', 0))
     db.execute(
-        "INSERT INTO products (id,name,description,price,compare_price,category_id,stock,sku,images,variations,allow_custom_print,is_bestseller) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        """INSERT INTO products
+           (id,name,description,price,compare_price,cost_price,category_id,stock,low_stock_threshold,
+            sku,images,variations,allow_custom_print,is_bestseller)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (pid, name, clean_text(data.get('description'), 5000), price, _clean_optional_money(data.get('compare_price')),
-         category_id, total_stock, clean_text(data.get('sku'), 80),
+         cost_price, category_id, total_stock, low_stock_threshold, clean_text(data.get('sku'), 80),
          json.dumps(_clean_product_images(data.get('images', []))), json.dumps([]),
          1 if data.get('allow_custom_print') else 0,
          1 if data.get('is_bestseller') else 0)
@@ -2702,12 +2763,16 @@ def update_product(pid):
     category_id = clean_text(data.get('category_id'), 80) or None
     if category_id and not db.execute("SELECT id FROM categories WHERE id=?", (category_id,)).fetchone():
         return jsonify({'error': 'Selected category was not found'}), 400
+    cost_price = _clean_optional_money(data.get('cost_price')) or 0
+    low_stock_threshold = _clean_product_stock(data.get('low_stock_threshold', 5))
     variants = _clean_product_variants(data.get('variants', []))
     total_stock = sum(int(v.get('stock', 0)) for v in variants) if variants else _clean_product_stock(data.get('stock', 0))
     db.execute(
-        "UPDATE products SET name=?,description=?,price=?,compare_price=?,category_id=?,stock=?,sku=?,images=?,variations=?,is_active=?,allow_custom_print=?,is_bestseller=? WHERE id=?",
+        """UPDATE products SET name=?,description=?,price=?,compare_price=?,cost_price=?,category_id=?,
+              stock=?,low_stock_threshold=?,sku=?,images=?,variations=?,is_active=?,allow_custom_print=?,is_bestseller=?
+           WHERE id=?""",
         (name, clean_text(data.get('description'), 5000), price, _clean_optional_money(data.get('compare_price')),
-         category_id, total_stock, clean_text(data.get('sku'), 80),
+         cost_price, category_id, total_stock, low_stock_threshold, clean_text(data.get('sku'), 80),
          json.dumps(_clean_product_images(data.get('images', []))), json.dumps([]),
          data.get('is_active', 1), 1 if data.get('allow_custom_print') else 0,
          1 if data.get('is_bestseller') else 0, pid)

@@ -66,9 +66,12 @@ Router.register('/admin/products', async () => {
                 ['active', 'Active', productHealth.active],
                 ['inactive', 'Inactive', productHealth.inactive],
                 ['out_of_stock', 'Out of stock', productHealth.out_of_stock],
+                ['low_stock', 'Low stock', productHealth.low_stock],
                 ['no_image', 'No image', productHealth.no_image],
                 ['no_category', 'No category', productHealth.no_category],
                 ['no_cost', 'No cost price', productHealth.no_cost],
+                ['duplicate_name', 'Duplicate names', productHealth.duplicate_name],
+                ['duplicate_sku', 'Duplicate SKUs', productHealth.duplicate_sku],
                 ['notify_waiting', 'Back-in-stock', productHealth.notify_waiting],
                 ['all', 'All', productHealth.all],
               ].map(([key, label, count]) => `
@@ -84,7 +87,7 @@ Router.register('/admin/products', async () => {
           <div class="admin-mobile-scroll-hint"><i class="fas fa-arrows-left-right"></i> Swipe sideways to view all columns</div>
           <div class="table-wrap admin-wide-scroll admin-products-wrap">
             <table class="admin-wide-table admin-products-table">
-              <thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Health</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody id="products-table-body">
                 ${renderProductRows(products)}
             </tbody>
@@ -114,25 +117,77 @@ Router.register('/admin/products', async () => {
     loadAll();
   };
 
+  function productIssues(p) {
+    const issues = [];
+    const stock = Number(p.stock || 0);
+    const lowThreshold = Number(p.low_stock_threshold ?? 5);
+    if (!Array.isArray(p.images) || !p.images.length) {
+      issues.push({ key: 'no_image', label: 'No image', tone: 'warning' });
+    }
+    if (!p.category_name) {
+      issues.push({ key: 'no_category', label: 'No category', tone: 'warning' });
+    }
+    if (Number(p.cost_price || 0) <= 0) {
+      issues.push({ key: 'no_cost', label: 'No cost', tone: 'warning' });
+    }
+    if (stock <= 0) {
+      issues.push({ key: 'out_of_stock', label: 'Out of stock', tone: 'danger' });
+    } else if (stock <= lowThreshold) {
+      issues.push({ key: 'low_stock', label: `Low stock <= ${lowThreshold}`, tone: 'warning' });
+    }
+    if (Number(p.back_in_stock_waiting || 0) > 0) {
+      issues.push({ key: 'notify_waiting', label: `${Number(p.back_in_stock_waiting || 0)} waiting`, tone: 'info' });
+    }
+    if (Number(p.duplicate_name_count || 0) > 1) {
+      issues.push({ key: 'duplicate_name', label: 'Duplicate name', tone: 'info' });
+    }
+    if (Number(p.duplicate_sku_count || 0) > 1) {
+      issues.push({ key: 'duplicate_sku', label: 'Duplicate SKU', tone: 'info' });
+    }
+    return issues;
+  }
+
+  function renderProductIssues(p) {
+    const issues = productIssues(p);
+    if (!issues.length) {
+      return '<span class="admin-product-issue good"><i class="fas fa-check"></i> Good</span>';
+    }
+    return issues.map(issue => `
+      <button class="admin-product-issue ${issue.tone}" data-csp-onclick="setProductFilter('${issue.key}')">
+        ${esc(issue.label)}
+      </button>`).join('');
+  }
+
   function renderProductRows(prods) {
-    if (!prods.length) return '<tr><td colspan="6" class="text-center text-muted" style="padding:32px">No products found</td></tr>';
+    if (!prods.length) return '<tr><td colspan="7" class="text-center text-muted" style="padding:32px">No products found</td></tr>';
     return prods.map(p => `
       <tr>
-        <td>
+        <td data-label="Product">
           <div style="display:flex;align-items:center;gap:10px">
-            <img src="${safeMediaUrl((p.images||[])[0], 'https://placehold.co/44x44/f5f5f5/999?text=?')}" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:6px" data-csp-onerror="this.src='https://placehold.co/44x44/f5f5f5/999?text=?'" />
-            <div><div style="font-weight:600">${esc(p.name)}</div>${p.sku ? `<div class="text-sm text-muted">SKU: ${esc(p.sku)}</div>` : ''}</div>
+            <img class="admin-product-thumb" src="${safeMediaUrl((p.images||[])[0], 'https://placehold.co/44x44/f5f5f5/999?text=?')}" alt="" data-csp-onerror="this.src='https://placehold.co/44x44/f5f5f5/999?text=?'" />
+            <div class="admin-product-name-stack">
+              <div style="font-weight:600">${esc(p.name)}</div>
+              ${p.sku ? `<div class="text-sm text-muted">SKU: ${esc(p.sku)}</div>` : '<div class="text-sm text-muted">No SKU</div>'}
+            </div>
           </div>
         </td>
-        <td>${esc(p.category_name || '-')}</td>
-        <td>${fmt(p.price)}${p.compare_price > p.price ? `<br><small class="text-muted" style="text-decoration:line-through">${fmt(p.compare_price)}</small>` : ''}</td>
-        <td>
-          <span class="${p.stock <= 0 ? 'badge badge-cancelled' : p.stock <= 5 ? 'badge badge-pending' : 'badge badge-success'}">${p.stock <= 0 ? 'Out' : p.stock}</span>
+        <td data-label="Category">${esc(p.category_name || '-')}</td>
+        <td data-label="Price">
+          ${fmt(p.price)}${p.compare_price > p.price ? `<br><small class="text-muted" style="text-decoration:line-through">${fmt(p.compare_price)}</small>` : ''}
+          <div class="text-sm text-muted">Cost: ${Number(p.cost_price || 0) > 0 ? fmt(p.cost_price) : 'missing'}</div>
+        </td>
+        <td data-label="Stock">
+          <span class="${Number(p.stock || 0) <= 0 ? 'badge badge-cancelled' : Number(p.stock || 0) <= Number(p.low_stock_threshold ?? 5) ? 'badge badge-pending' : 'badge badge-success'}">${Number(p.stock || 0) <= 0 ? 'Out' : Number(p.stock || 0)}</span>
+          <div class="text-sm text-muted" style="margin-top:4px">Low at ${Number(p.low_stock_threshold ?? 5)}</div>
           ${Number(p.back_in_stock_waiting || 0) > 0 ? `<div class="text-sm text-muted" style="margin-top:4px"><i class="fas fa-envelope"></i> ${Number(p.back_in_stock_waiting || 0)} waiting</div>` : ''}
         </td>
-        <td>${p.is_active ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-cancelled">Inactive</span>'}</td>
-        <td>
-          <div style="display:flex;gap:6px">
+        <td data-label="Health">
+          <div class="admin-product-issues">${renderProductIssues(p)}</div>
+        </td>
+        <td data-label="Status">${p.is_active ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-cancelled">Inactive</span>'}</td>
+        <td data-label="Actions">
+          <div class="admin-product-action-row">
+            <a class="btn btn-sm btn-ghost" href="/product/${encodeURIComponent(p.id)}" target="_blank" rel="noopener" aria-label="View ${esc(p.name)}"><i class="fas fa-eye"></i></a>
             <button class="btn btn-sm btn-ghost" data-csp-onclick="openProductModalById('${p.id}')" aria-label="Edit ${esc(p.name)}"><i class="fas fa-edit"></i></button>
             <button class="btn btn-sm btn-danger" data-csp-onclick="deleteProduct('${p.id}')" aria-label="Delete ${esc(p.name)}"><i class="fas fa-trash"></i></button>
           </div>
@@ -284,6 +339,16 @@ Router.register('/admin/products', async () => {
           <div class="form-group"><label class="form-label">SKU</label>
             <input class="form-control" id="pm-sku" value="${esc(product?.sku || '')}" placeholder="SKU-001" /></div>
         </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Stock Quantity</label>
+            <input class="form-control" id="pm-stock" type="number" value="${Number(product?.stock || 0)}" min="0" step="1" />
+            <div class="text-sm text-muted" style="margin-top:5px">Used when no color/size rows are added.</div></div>
+          <div class="form-group"><label class="form-label">Low Stock Alert</label>
+            <input class="form-control" id="pm-low-stock" type="number" value="${Number(product?.low_stock_threshold ?? 5)}" min="0" step="1" />
+            <div class="text-sm text-muted" style="margin-top:5px">Product appears in Low stock at this quantity.</div></div>
+        </div>
+        <div class="form-group"><label class="form-label">Cost Price ($)</label>
+          <input class="form-control" id="pm-cost" type="number" value="${product?.cost_price || ''}" min="0" step="0.01" placeholder="What you paid for one item" /></div>
         <div class="form-group"><label class="form-label">Description</label>
           <textarea class="form-control" id="pm-desc" rows="3">${esc(product?.description || '')}</textarea></div>
 
@@ -301,7 +366,7 @@ Router.register('/admin/products', async () => {
             </button>
           </div>
           <div style="margin-top:8px;font-size:.78rem;color:var(--text-light)">
-            Sizes shown: XS, S, M, L, XL, 2XL — enter 0 for unavailable sizes.
+            Sizes shown: XS, S, M, L, XL, 2XL — enter 0 for unavailable sizes. If this product has no sizes/colors, leave this empty and use Stock Quantity above.
           </div>
         </div>
 
@@ -385,6 +450,9 @@ Router.register('/admin/products', async () => {
     const price = parseFloat(document.getElementById('pm-price').value);
     const category_id = document.getElementById('pm-cat').value;
     const description = document.getElementById('pm-desc').value.trim();
+    const simpleStock = Math.max(0, parseInt(document.getElementById('pm-stock').value, 10) || 0);
+    const lowStockThreshold = Math.max(0, parseInt(document.getElementById('pm-low-stock').value, 10) || 0);
+    const costPrice = parseFloat(document.getElementById('pm-cost').value) || 0;
 
     if (!name) { toast('Product name is required', 'error'); return; }
     if (!price || price <= 0) { toast('A valid price is required', 'error'); return; }
@@ -403,11 +471,14 @@ Router.register('/admin/products', async () => {
 
     btn.disabled = true; btn.textContent = 'Saving...';
     const variants = buildVariantsPayload();
+    const variantStock = variants.reduce((s, v) => s + v.stock, 0);
     const data = {
       name, price,
       compare_price: parseFloat(document.getElementById('pm-compare').value) || null,
+      cost_price: costPrice,
       category_id,
-      stock: variants.reduce((s, v) => s + v.stock, 0),
+      stock: variantColors.length ? variantStock : simpleStock,
+      low_stock_threshold: lowStockThreshold,
       sku: document.getElementById('pm-sku').value,
       description,
       images,

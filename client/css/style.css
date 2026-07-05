@@ -1569,6 +1569,71 @@ a.product-card { display: block; text-decoration: none; color: inherit; }
   font-size: .84rem;
   margin-bottom: 14px;
 }
+.admin-content .admin-product-thumb {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border: 1px solid #e7e5df;
+  border-radius: 8px;
+  background: #f6f5f1;
+  flex: 0 0 auto;
+}
+.admin-content .admin-product-name-stack {
+  min-width: 180px;
+}
+.admin-content .admin-product-issues {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 170px;
+}
+.admin-content .admin-product-issue {
+  border: 1px solid #e1ddd3;
+  border-radius: 999px;
+  background: #fff;
+  color: #374151;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: .74rem;
+  font-weight: 800;
+  line-height: 1.2;
+  min-height: 25px;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+button.admin-product-issue {
+  cursor: pointer;
+}
+button.admin-product-issue:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.admin-content .admin-product-issue.good {
+  border-color: #dbeede;
+  background: #eef9f0;
+  color: #15713a;
+}
+.admin-content .admin-product-issue.warning {
+  border-color: #f5ddb8;
+  background: #fff6e7;
+  color: #a45b00;
+}
+.admin-content .admin-product-issue.danger {
+  border-color: #f6c9c9;
+  background: #fff0f0;
+  color: #b42318;
+}
+.admin-content .admin-product-issue.info {
+  border-color: #cfe0f4;
+  background: #eef6ff;
+  color: #145ea8;
+}
+.admin-content .admin-product-action-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
 
 /* Security Center */
 .admin-content .security-center-summary .security-status-card {
@@ -2304,7 +2369,8 @@ a.product-card { display: block; text-decoration: none; color: inherit; }
     min-width: 900px;
     width: max-content;
   }
-  .admin-content .admin-products-table { min-width: 760px; }
+  .admin-content .admin-wide-scroll > table.admin-products-table,
+  .admin-content .admin-products-table { min-width: 980px; }
   .admin-content .admin-users-table { min-width: 820px; }
   .admin-content .admin-coupons-table { min-width: 900px; }
   .admin-content .admin-reviews-table { min-width: 860px; }
