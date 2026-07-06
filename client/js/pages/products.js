@@ -39,6 +39,7 @@ Router.register('/products', async (params) => {
           <input type="text" id="search-box" class="form-control" style="max-width:260px" placeholder="Search products..." value="${params.search || ''}" data-csp-onkeydown="if(event.key==='Enter')applyFilters()" />
           <span class="results-count" id="results-count"></span>
         </div>
+        <div id="shop-context-panel" class="shop-context-panel" style="display:none"></div>
         <div id="products-grid" class="grid-4"><div class="spinner"></div></div>
         <div id="pagination"></div>
       </div>
@@ -57,6 +58,114 @@ Router.register('/products', async (params) => {
     { label: '$75 – $150', min: 75,   max: 150 },
     { label: '$150+',      min: 150,  max: null },
   ];
+
+  const cleanText = value => String(value || '').replace(/\s+/g, ' ').trim();
+  const absoluteUrl = path => {
+    try { return new URL(path || '/', location.origin).href; } catch { return location.origin + '/'; }
+  };
+  const selectedCategory = () => allCats.find(c => c.id === currentCat) || null;
+  const priceLabel = () => {
+    const match = PRICE_RANGES.find(r => currentPrice.min === r.min && currentPrice.max === r.max);
+    return match ? match.label : '';
+  };
+  function setMeta(sel, val) {
+    const el = document.querySelector(sel);
+    if (el) el.setAttribute('content', val);
+  }
+
+  function ensureCanonical(href) {
+    let el = document.querySelector('link[rel="canonical"]');
+    if (!el) {
+      el = document.createElement('link');
+      el.rel = 'canonical';
+      document.head.appendChild(el);
+    }
+    el.href = href;
+  }
+
+  function setProductsMeta(title, description, canonicalPath) {
+    const desc = cleanText(description).slice(0, 155);
+    const fullTitle = `${title} — Adhya Shakti Shop`;
+    const canonical = absoluteUrl(canonicalPath || '/products');
+    document.title = fullTitle;
+    setMeta('meta[name="description"]', desc);
+    setMeta('meta[property="og:title"]', fullTitle);
+    setMeta('meta[property="og:description"]', desc);
+    setMeta('meta[property="og:url"]', canonical);
+    setMeta('meta[name="twitter:title"]', fullTitle);
+    setMeta('meta[name="twitter:description"]', desc);
+    ensureCanonical(canonical);
+  }
+
+  function categoryDescription(cat, total = null) {
+    const label = cat?.path_label || cat?.name || 'products';
+    const countText = total === null ? 'Shop' : `Shop ${total} ${total === 1 ? 'item' : 'items'} in`;
+    const lower = label.toLowerCase();
+    if (/jewel/.test(lower)) return `${countText} ${label}: necklaces, earrings, bracelets, sets, and gift-ready pieces from Adhya Shakti Shop.`;
+    if (/custom|print/.test(lower)) return `${countText} ${label}: personalized apparel and gifts with secure checkout and support before ordering.`;
+    if (/cloth|shirt|polo|hood|co-ord|women|men/.test(lower)) return `${countText} ${label}: clothing options with clear color, size, stock, and product details.`;
+    return `${countText} ${label}: curated products, secure checkout, and shipping from New Jersey.`;
+  }
+
+  function renderShopContext(total = null) {
+    const panel = document.getElementById('shop-context-panel');
+    if (!panel) return;
+    const cat = selectedCategory();
+    const active = [];
+    if (cat) active.push(`<span><i class="fas ${categoryIcon(cat.name)}"></i>${esc(cat.path_label || cat.name)}</span>`);
+    if (currentSearch) active.push(`<span><i class="fas fa-search"></i>${esc(currentSearch)}</span>`);
+    if (priceLabel()) active.push(`<span><i class="fas fa-tag"></i>${esc(priceLabel())}</span>`);
+    const totalText = total === null ? 'Products update as you shop.' : `${total} product${total === 1 ? '' : 's'} available.`;
+    const desc = cat ? categoryDescription(cat, total) : 'Browse jewelry, clothing, custom items, and gifts with secure checkout and support from a small New Jersey shop.';
+    panel.style.display = '';
+    panel.innerHTML = `
+      <div class="shop-context-copy">
+        <div class="shop-context-title">${cat ? esc(cat.path_label || cat.name) : 'Shop With Confidence'}</div>
+        <p>${esc(desc)}</p>
+        <div class="shop-context-trust">
+          <span><i class="fas fa-lock"></i> Secure checkout</span>
+          <span><i class="fas fa-truck"></i> Ships from New Jersey</span>
+          <span><i class="fas fa-envelope"></i> Help before ordering</span>
+        </div>
+      </div>
+      <div class="shop-context-side">
+        <div class="shop-context-count">${esc(totalText)}</div>
+        ${active.length ? `<div class="active-filter-list">${active.join('')}</div>
+          <button class="btn btn-ghost btn-sm" id="clear-product-filters" type="button"><i class="fas fa-xmark"></i> Clear filters</button>` : ''}
+      </div>`;
+    document.getElementById('clear-product-filters')?.addEventListener('click', () => {
+      currentCat = '';
+      currentSearch = '';
+      currentPrice = { min: null, max: null };
+      currentPage = 1;
+      const search = document.getElementById('search-box');
+      if (search) search.value = '';
+      buildPriceChips();
+      buildCatFilter(allCats, '');
+      loadProducts();
+    });
+  }
+
+  function updateProductListJsonLd(products) {
+    document.getElementById('products-list-jsonld')?.remove();
+    if (!products || !products.length) return;
+    const itemList = {
+      '@context': 'https://schema.org',
+      '@type': 'ItemList',
+      name: selectedCategory()?.path_label || (currentSearch ? `Search results for ${currentSearch}` : 'Adhya Shakti Shop products'),
+      itemListElement: products.slice(0, 12).map((p, idx) => ({
+        '@type': 'ListItem',
+        position: idx + 1,
+        url: absoluteUrl(`/product/${encodeURIComponent(p.id)}`),
+        name: p.name,
+      })),
+    };
+    const script = document.createElement('script');
+    script.type = 'application/ld+json';
+    script.id = 'products-list-jsonld';
+    script.textContent = JSON.stringify(itemList);
+    document.head.appendChild(script);
+  }
 
   function buildPriceChips() {
     const bar = document.getElementById('price-chip-bar');
@@ -102,35 +211,28 @@ Router.register('/products', async (params) => {
     const titleEl = document.getElementById('products-title');
     const subEl = document.getElementById('products-subtitle');
     if (!titleEl || !subEl) return;
-    const setDesc = (text) => {
-      const desc = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 155);
-      const meta = document.querySelector('meta[name="description"]');
-      if (meta) meta.setAttribute('content', desc);
-      const og = document.querySelector('meta[property="og:description"]');
-      if (og) og.setAttribute('content', desc);
-    };
 
-    const matchedCat = allCats.find(c => c.id === currentCat);
+    const matchedCat = selectedCategory();
     if (currentSearch) {
       titleEl.textContent = 'Search results';
       subEl.textContent = `Showing ${total === null ? 'products' : total + ' product' + (total === 1 ? '' : 's')} matching "${currentSearch}".`;
-      document.title = `Search results for ${currentSearch} — Adhya Shakti Shop`;
-      setDesc(`Shop products matching ${currentSearch} at Adhya Shakti Shop. Jewelry, clothing, custom gifts, and more from New Jersey.`);
+      setProductsMeta(`Search results for ${currentSearch}`, `Shop products matching ${currentSearch} at Adhya Shakti Shop. Jewelry, clothing, custom gifts, and more from New Jersey.`, '/products');
+      renderShopContext(total);
       return;
     }
 
     if (matchedCat) {
       titleEl.textContent = matchedCat.name || 'Products';
-      subEl.textContent = matchedCat.path_label || 'Browse this collection.';
-      document.title = `${matchedCat.path_label || matchedCat.name} — Adhya Shakti Shop`;
-      setDesc(`Shop ${matchedCat.path_label || matchedCat.name} at Adhya Shakti Shop. Handpicked products, secure checkout, and shipping from New Jersey.`);
+      subEl.textContent = categoryDescription(matchedCat, total);
+      setProductsMeta(matchedCat.path_label || matchedCat.name, categoryDescription(matchedCat, total), `/products?category=${encodeURIComponent(matchedCat.id)}`);
+      renderShopContext(total);
       return;
     }
 
     titleEl.textContent = 'All Products';
     subEl.textContent = 'Browse jewelry, clothing, custom items, and gifts from Adhya Shakti Shop.';
-    document.title = 'Products — Adhya Shakti Shop';
-    setDesc('Browse jewelry, clothing, custom items, and gifts from Adhya Shakti Shop. Secure checkout and shipping from New Jersey.');
+    setProductsMeta('Products', 'Browse jewelry, clothing, custom items, and gifts from Adhya Shakti Shop. Secure checkout and shipping from New Jersey.', '/products');
+    renderShopContext(total);
   }
 
   function buildCatFilter(cats, activeCat) {
@@ -213,6 +315,7 @@ Router.register('/products', async (params) => {
 
       document.getElementById('results-count').textContent = `${total} product${total !== 1 ? 's' : ''} found`;
       updatePageIntro(total);
+      updateProductListJsonLd(products);
 
       if (!products.length) {
         const matchedCat = allCats.find(c => c.id === currentCat);
@@ -221,9 +324,20 @@ Router.register('/products', async (params) => {
         const isClothingRelated = pathNames.includes('clothing');
         if (isClothingRelated || isCustomRelated) {
           const dest = isCustomRelated ? '/custom-printing' : '/clothing';
-          grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><i class="fas fa-clock"></i><h3>Coming Soon</h3><p>This category isn't available yet — <a href="${dest}" data-link>see details and get notified</a>.</p></div>`;
+          grid.innerHTML = `<div class="empty-state product-empty-state" style="grid-column:1/-1"><i class="fas fa-clock"></i><h3>Coming Soon</h3><p>This category isn't available yet — <a href="${dest}" data-link>see details and get notified</a>.</p><a href="/products" data-link class="btn btn-primary btn-sm mt16">Browse available products</a></div>`;
         } else {
-          grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><i class="fas fa-search"></i><h3>No products found</h3><p>Try a different search or category</p></div>`;
+          grid.innerHTML = `<div class="empty-state product-empty-state" style="grid-column:1/-1"><i class="fas fa-search"></i><h3>No products found</h3><p>Try a different search, category, or price range.</p><button class="btn btn-primary btn-sm mt16" id="empty-clear-product-filters" type="button">Clear filters</button></div>`;
+          document.getElementById('empty-clear-product-filters')?.addEventListener('click', () => {
+            currentCat = '';
+            currentSearch = '';
+            currentPrice = { min: null, max: null };
+            currentPage = 1;
+            const search = document.getElementById('search-box');
+            if (search) search.value = '';
+            buildPriceChips();
+            buildCatFilter(allCats, '');
+            loadProducts();
+          });
         }
       } else {
         grid.innerHTML = products.map(productCard).join('');
