@@ -1324,6 +1324,27 @@ def init_db():
             UNIQUE (product_id, email)
         );
 
+        CREATE TABLE IF NOT EXISTS abandoned_carts (
+            id TEXT PRIMARY KEY,
+            email TEXT NOT NULL UNIQUE,
+            name TEXT,
+            phone TEXT,
+            user_id TEXT,
+            items TEXT NOT NULL DEFAULT '[]',
+            subtotal REAL DEFAULT 0,
+            discount REAL DEFAULT 0,
+            shipping REAL DEFAULT 0,
+            total REAL DEFAULT 0,
+            coupon_code TEXT,
+            payment_intent_id TEXT,
+            recovery_token TEXT,
+            unsubscribed INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now')),
+            reminded_at TEXT,
+            converted_at TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+        );
+
         CREATE TABLE IF NOT EXISTS security_events (
             id TEXT PRIMARY KEY,
             event_type TEXT NOT NULL,
@@ -1530,6 +1551,10 @@ def init_db():
         db.execute("""
             CREATE INDEX IF NOT EXISTS idx_back_in_stock_email
             ON back_in_stock_requests(email, created_at)
+        """)
+        db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_abandoned_carts_pending
+            ON abandoned_carts(converted_at, reminded_at, created_at)
         """)
         db.execute("""
             CREATE INDEX IF NOT EXISTS idx_admin_audit_log_created
@@ -2879,6 +2904,56 @@ def get_categories():
 
 # ─── Stripe Payment ───────────────────────────────────────────────────────────
 
+def _capture_abandoned_cart(db, *, email, name, phone, user_id, items, totals, payment_intent_id):
+    """Snapshot a checkout attempt so an unfinished cart can be reminded later.
+    Stores minimal item refs (id/qty/variation); product details are looked up
+    at send time so the reminder always reflects current names, prices, images."""
+    if not email:
+        return
+    refs = []
+    for it in (items or [])[:50]:
+        if not isinstance(it, dict):
+            continue
+        pid = clean_text(it.get('id'), 80)
+        if not pid:
+            continue
+        try:
+            qty = max(1, int(it.get('qty') or it.get('quantity') or 1))
+        except Exception:
+            qty = 1
+        refs.append({'id': pid, 'qty': qty, 'variation': clean_text(it.get('variation'), 100)})
+    if not refs:
+        return
+    db.execute(
+        """
+        INSERT INTO abandoned_carts
+            (id,email,name,phone,user_id,items,subtotal,discount,shipping,total,
+             coupon_code,payment_intent_id,recovery_token,created_at,reminded_at,converted_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),NULL,NULL)
+        ON CONFLICT(email) DO UPDATE SET
+            name=excluded.name,
+            phone=excluded.phone,
+            user_id=COALESCE(excluded.user_id, abandoned_carts.user_id),
+            items=excluded.items,
+            subtotal=excluded.subtotal,
+            discount=excluded.discount,
+            shipping=excluded.shipping,
+            total=excluded.total,
+            coupon_code=excluded.coupon_code,
+            payment_intent_id=excluded.payment_intent_id,
+            recovery_token=COALESCE(abandoned_carts.recovery_token, excluded.recovery_token),
+            created_at=datetime('now'),
+            reminded_at=NULL,
+            converted_at=NULL
+        """,
+        (str(uuid.uuid4()), email, name, phone, user_id, json.dumps(refs),
+         float(totals.get('subtotal') or 0), float(totals.get('discount') or 0),
+         float(totals.get('shipping') or 0), float(totals.get('total') or 0),
+         totals.get('coupon_code') or '', payment_intent_id, uuid.uuid4().hex)
+    )
+    db.commit()
+
+
 @app.route('/api/create-payment-intent', methods=['POST'])
 @limiter.limit("15 per minute; 100 per hour")
 def create_payment_intent():
@@ -2933,6 +3008,17 @@ def create_payment_intent():
                 'customer_email': customer_email[:140],
             },
         )
+        # Snapshot this checkout attempt for abandoned-cart recovery. A capture
+        # problem must never interfere with taking the customer's payment.
+        try:
+            _capture_abandoned_cart(
+                db, email=customer_email, name=customer_name, phone=customer_phone,
+                user_id=customer_user_id, items=data.get('items'),
+                totals=totals, payment_intent_id=intent['id'],
+            )
+        except Exception as _cap_exc:
+            app.logger.warning('abandoned-cart capture failed: %s', _cap_exc)
+
         return jsonify({
             'client_secret': intent['client_secret'],
             'subtotal': round(totals['subtotal'], 2),
@@ -2946,6 +3032,29 @@ def create_payment_intent():
         return jsonify({'error': str(e.user_message)}), 400
     except Exception as e:
         return jsonify({'error': 'Payment setup failed. Please try again.'}), 500
+
+
+@app.route('/api/cart-reminders/unsubscribe/<token>', methods=['GET'])
+@limiter.limit("40 per hour")
+def unsubscribe_cart_reminders(token):
+    token = clean_text(token, 80)
+    page = ('<!doctype html><html><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<title>Unsubscribed</title></head>'
+            '<body style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:60px auto;padding:0 20px;text-align:center;color:#333">'
+            '<h2 style="color:#1D5C4A">You\'re unsubscribed</h2>'
+            '<p>You won\'t receive any more cart reminder emails from Adhya Shakti Shop. '
+            'You will still get emails about orders you place.</p>'
+            '<p><a href="https://adhyashaktishop.com" style="color:#1D5C4A;font-weight:700;text-decoration:none">Return to the shop</a></p>'
+            '</body></html>')
+    if token:
+        try:
+            db = get_db()
+            db.execute("UPDATE abandoned_carts SET unsubscribed=1 WHERE recovery_token=?", (token,))
+            db.commit()
+        except Exception:
+            pass
+    return Response(page, mimetype='text/html')
 
 
 @app.route('/api/stripe-key', methods=['GET'])
@@ -3591,6 +3700,16 @@ def create_order():
             metadata={'payment_intent_id': payment_intent_id},
         )
         return jsonify({'error': 'Could not save your order. Please contact support with your payment confirmation.'}), 500
+
+    # This customer finished checking out — cancel any pending cart reminder.
+    try:
+        db.execute(
+            "UPDATE abandoned_carts SET converted_at=datetime('now') WHERE email=? AND converted_at IS NULL",
+            (customer_email,)
+        )
+        db.commit()
+    except Exception as _ac_exc:
+        app.logger.warning('abandoned-cart convert-mark failed: %s', _ac_exc)
 
     email_order_confirmation(
         order_num, customer_name, customer_email,
