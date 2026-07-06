@@ -399,7 +399,7 @@ function getRecentlyViewedProducts(limit = 4, excludeIds = []) {
       .map(p => ({
         ...p,
         images: p.images || (p.image ? [p.image] : []),
-        stock: p.stock === undefined ? 1 : p.stock,
+        stock: p.stock,
       }))
       .slice(0, limit);
   } catch {

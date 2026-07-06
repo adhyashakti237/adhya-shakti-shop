@@ -243,7 +243,7 @@ Router.register('/product/:id', async (params) => {
                   ? `<span style="color:#b91c1c"><i class="fas fa-times-circle" style="margin-right:5px"></i>Out of Stock</span>`
                   : p.stock <= 5
                     ? `<span class="low-stock-badge" style="font-size:.85rem;padding:4px 10px"><i class="fas fa-exclamation-circle"></i> Only ${p.stock} left — order soon!</span>`
-                    : `<span style="color:var(--success)"><i class="fas fa-check-circle" style="margin-right:5px"></i>In Stock (${p.stock} available)</span>`}
+                    : `<span style="color:var(--success)"><i class="fas fa-check-circle" style="margin-right:5px"></i>In Stock</span>`}
               </div>`}
 
               <div class="form-group">

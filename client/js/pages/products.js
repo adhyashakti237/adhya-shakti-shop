@@ -117,7 +117,7 @@ Router.register('/products', async (params) => {
     if (priceLabel()) active.push(`<span><i class="fas fa-tag"></i>${esc(priceLabel())}</span>`);
     const totalText = total === null ? 'Products update as you shop.' : `${total} product${total === 1 ? '' : 's'} available.`;
     const desc = cat ? categoryDescription(cat, total) : 'Browse jewelry, clothing, custom items, and gifts with secure checkout and support from a small New Jersey shop.';
-    panel.style.display = '';
+    panel.style.display = 'none';
     panel.innerHTML = `
       <div class="shop-context-copy">
         <div class="shop-context-title">${cat ? esc(cat.path_label || cat.name) : 'Shop With Confidence'}</div>
