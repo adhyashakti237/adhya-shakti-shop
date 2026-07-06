@@ -8,7 +8,7 @@ function openLightbox(images, startIdx) {
   const draw = () => {
     ov.innerHTML = `
       <button class="lightbox-close" title="Close" aria-label="Close">×</button>
-      <img class="lightbox-img" src="${images[cur]}" alt="" />
+      <div class="lightbox-figure"><img class="lightbox-img" src="${images[cur]}" alt="" /></div>
       ${images.length > 1 ? `
         <button class="lightbox-arrow lb-prev" aria-label="Previous image"><i class="fas fa-chevron-left"></i></button>
         <button class="lightbox-arrow lb-next" aria-label="Next image"><i class="fas fa-chevron-right"></i></button>
@@ -16,6 +16,26 @@ function openLightbox(images, startIdx) {
     ov.querySelector('.lightbox-close').onclick = () => ov.remove();
     ov.querySelector('.lb-prev')?.addEventListener('click', () => { cur = (cur - 1 + images.length) % images.length; draw(); });
     ov.querySelector('.lb-next')?.addEventListener('click', () => { cur = (cur + 1) % images.length; draw(); });
+    // Magnify-zoom: tap/click the image to zoom in, move to pan, tap again to reset.
+    const fig = ov.querySelector('.lightbox-figure');
+    const zimg = fig.querySelector('.lightbox-img');
+    let zoomed = false;
+    const setOrigin = (cx, cy) => {
+      const r = fig.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      const x = Math.min(100, Math.max(0, ((cx - r.left) / r.width) * 100));
+      const y = Math.min(100, Math.max(0, ((cy - r.top) / r.height) * 100));
+      zimg.style.transformOrigin = x + '% ' + y + '%';
+    };
+    fig.addEventListener('click', e => {
+      e.stopPropagation();
+      zoomed = !zoomed;
+      fig.classList.toggle('zoomed', zoomed);
+      if (zoomed) { setOrigin(e.clientX, e.clientY); zimg.style.transform = 'scale(2.4)'; }
+      else { zimg.style.transform = ''; }
+    });
+    fig.addEventListener('mousemove', e => { if (zoomed) setOrigin(e.clientX, e.clientY); });
+    fig.addEventListener('touchmove', e => { if (zoomed && e.touches[0]) { e.preventDefault(); setOrigin(e.touches[0].clientX, e.touches[0].clientY); } }, { passive: false });
   };
 
   ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });

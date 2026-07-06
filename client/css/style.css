@@ -2587,10 +2587,24 @@ body:has(.sticky-atc.visible) .back-to-top { display: none; }
   animation: lbFadeIn .18s ease;
 }
 @keyframes lbFadeIn { from { opacity:0 } to { opacity:1 } }
+.lightbox-figure {
+  max-width: 90vw; max-height: 88vh; overflow: hidden;
+  border-radius: 6px; box-shadow: 0 32px 80px rgba(0,0,0,.6);
+  cursor: zoom-in; line-height: 0; position: relative;
+}
+.lightbox-figure.zoomed { cursor: zoom-out; }
+.lightbox-figure::after {
+  content: "Tap to zoom";
+  position: absolute; bottom: 10px; right: 10px;
+  background: rgba(0,0,0,.55); color: #fff; font-size: .72rem; font-weight: 600;
+  letter-spacing: .3px; padding: 4px 11px; border-radius: 20px;
+  pointer-events: none; opacity: .92; transition: opacity .2s;
+}
+.lightbox-figure.zoomed::after { opacity: 0; }
 .lightbox-img {
   max-width: 90vw; max-height: 88vh; object-fit: contain;
-  border-radius: 6px; box-shadow: 0 32px 80px rgba(0,0,0,.6);
-  user-select: none;
+  user-select: none; display: block;
+  transition: transform .25s ease; will-change: transform;
 }
 .lightbox-close {
   position: absolute; top: 16px; right: 20px;
