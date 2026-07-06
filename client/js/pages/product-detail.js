@@ -336,6 +336,7 @@ Router.register('/product/:id', async (params) => {
               <div class="product-confidence-panel">
                 <div><i class="fas fa-lock"></i><span>Secure checkout powered by Stripe</span></div>
                 <div><i class="fas fa-truck"></i><span>Ships from New Jersey, USA</span></div>
+                <div><i class="fas fa-rotate-left"></i><span>Easy 15-day returns — we'll make it right</span></div>
                 <div><i class="fas fa-ruler-combined"></i><span>Need help with size? Contact us before ordering</span></div>
               </div>
               <!-- Delivery estimate -->
