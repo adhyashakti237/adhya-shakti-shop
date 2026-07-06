@@ -223,7 +223,7 @@ Router.register('/', async () => {
     const cfg = panelCfg[key];
     return `
       <div class="collection-panel" data-csp-onclick="Router.navigate('${dest}')" style="${extraStyle}">
-        <img src="${cfg.img}" alt="${cfg.label}" loading="eager" data-csp-onerror="this.style.display='none'" />
+        <img src="${cfg.img}" alt="${cfg.label}" loading="lazy" decoding="async" data-csp-onerror="this.style.display='none'" />
         <div class="collection-panel-overlay">
           <div style="font-size:.68rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:10px">Adhya Shakti Shop</div>
           <div style="font-size:clamp(1.6rem,7vw,2.4rem);font-weight:800;color:#fff;font-family:Georgia,serif;line-height:1.1;margin-bottom:10px;overflow-wrap:break-word;word-break:break-word">${cfg.label}</div>
@@ -244,7 +244,7 @@ Router.register('/', async () => {
     const sub = cfg.sub || `${kids} active categor${kids === 1 ? 'y' : 'ies'} ready to shop`;
     return `
       <div class="collection-panel" data-csp-onclick="Router.navigate('${dest || ('/products?category=' + type.id)}')" style="${extraStyle}">
-        <img src="${img}" alt="${esc(type.name)}" loading="eager" data-csp-onerror="this.style.display='none'" />
+        <img src="${img}" alt="${esc(type.name)}" loading="lazy" decoding="async" data-csp-onerror="this.style.display='none'" />
         <div class="collection-panel-overlay">
           <div style="font-size:.68rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:10px">Adhya Shakti Shop</div>
           <div style="font-size:clamp(1.6rem,7vw,2.4rem);font-weight:800;color:#fff;font-family:Georgia,serif;line-height:1.1;margin-bottom:10px;overflow-wrap:break-word;word-break:break-word">${esc(type.name)}</div>
