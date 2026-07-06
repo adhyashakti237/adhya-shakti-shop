@@ -4639,6 +4639,95 @@ def robots():
     return Response(content, mimetype='text/plain')
 
 
+@app.route('/google-shopping-feed.xml')
+@limiter.limit("60 per hour")
+def google_shopping_feed():
+    """Google Merchant Center product feed (RSS 2.0 + g: namespace).
+    Register this URL as a scheduled feed in Merchant Center; Google refetches
+    it on its own, so it always reflects current products, prices, and stock."""
+    base = 'https://adhyashaktishop.com'
+    db = get_db()
+    cat_names = {}
+    try:
+        for c in db.execute("SELECT id,name FROM categories").fetchall():
+            cat_names[c['id']] = c['name'] or ''
+    except Exception:
+        pass
+    rows = db.execute(
+        """SELECT id,name,description,price,compare_price,sku,stock,images,category_id
+           FROM products WHERE IFNULL(is_active,1)=1 ORDER BY created_at DESC LIMIT 1000"""
+    ).fetchall()
+
+    def x(v):
+        return escape(str(v if v is not None else ''), quote=True)
+
+    def strip_html(s):
+        s = re.sub(r'<[^>]+>', ' ', str(s or ''))
+        return re.sub(r'\s+', ' ', s).strip()
+
+    def abs_img(im):
+        im = str(im)
+        return im if im.startswith('http') else base + im
+
+    items = []
+    for r in rows:
+        price = float(r['price'] or 0)
+        if price <= 0:
+            continue  # Google rejects zero-price items
+        try:
+            images = [str(im) for im in json.loads(r['images'] or '[]') if im]
+        except Exception:
+            images = []
+        if not images:
+            continue  # Google requires at least one image
+        name = (r['name'] or 'Product')[:150]
+        desc = (strip_html(r['description']) or name)[:4900]
+        compare = float(r['compare_price'] or 0)
+        avail = 'in_stock' if int(r['stock'] or 0) > 0 else 'out_of_stock'
+        cat_name = cat_names.get(r['category_id'], '')
+        low = ('%s %s' % (cat_name, name)).lower()
+        gcat = ('Apparel & Accessories > Clothing'
+                if any(k in low for k in ('shirt', 'hoodie', 'cloth', 'apparel', 'co-ord', 'polo', 'tee'))
+                else 'Apparel & Accessories > Jewelry')
+        p = ['    <item>',
+             '      <g:id>%s</g:id>' % x(r['id']),
+             '      <g:title>%s</g:title>' % x(name),
+             '      <g:description>%s</g:description>' % x(desc),
+             '      <g:link>%s/product/%s</g:link>' % (base, x(r['id'])),
+             '      <g:image_link>%s</g:image_link>' % x(abs_img(images[0]))]
+        for im in images[1:11]:
+            p.append('      <g:additional_image_link>%s</g:additional_image_link>' % x(abs_img(im)))
+        p.append('      <g:availability>%s</g:availability>' % avail)
+        p.append('      <g:condition>new</g:condition>')
+        if compare > price:
+            p.append('      <g:price>%.2f USD</g:price>' % compare)
+            p.append('      <g:sale_price>%.2f USD</g:sale_price>' % price)
+        else:
+            p.append('      <g:price>%.2f USD</g:price>' % price)
+        p.append('      <g:brand>Adhya Shakti Shop</g:brand>')
+        sku = (r['sku'] or '').strip()
+        if sku:
+            p.append('      <g:mpn>%s</g:mpn>' % x(sku))
+        else:
+            p.append('      <g:identifier_exists>no</g:identifier_exists>')
+        p.append('      <g:google_product_category>%s</g:google_product_category>' % x(gcat))
+        if cat_name:
+            p.append('      <g:product_type>%s</g:product_type>' % x(cat_name))
+        p.append('    </item>')
+        items.append('\n'.join(p))
+
+    xml = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+           '<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">\n'
+           '  <channel>\n'
+           '    <title>Adhya Shakti Shop</title>\n'
+           '    <link>https://adhyashaktishop.com</link>\n'
+           '    <description>Handcrafted jewelry and custom-printed clothing from New Jersey, USA.</description>\n'
+           '%s\n'
+           '  </channel>\n'
+           '</rss>') % '\n'.join(items)
+    return Response(xml, mimetype='application/xml')
+
+
 # ─── Sliders & Settings ───────────────────────────────────────────────────────
 
 @app.route('/api/sliders', methods=['GET'])

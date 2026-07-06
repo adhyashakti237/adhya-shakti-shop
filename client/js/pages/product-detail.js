@@ -460,11 +460,13 @@ Router.register('/product/:id', async (params) => {
       image: imgs.map(absoluteSiteUrl),
       url: absoluteSiteUrl(location.pathname),
       brand: { '@type': 'Brand', name: 'Adhya Shakti Shop' },
+      ...(p.sku ? { sku: String(p.sku) } : {}),
       offers: {
         '@type': 'Offer',
         priceCurrency: 'USD',
         price: p.price,
         availability: 'https://schema.org/' + (unavailable ? 'OutOfStock' : 'InStock'),
+        itemCondition: 'https://schema.org/NewCondition',
         seller: { '@type': 'Organization', name: 'Adhya Shakti Shop' },
       },
       ...(p.reviews?.length ? {
