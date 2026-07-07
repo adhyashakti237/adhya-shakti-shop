@@ -79,6 +79,33 @@ ul { list-style: none; }
   background: none; border: none; color: var(--text-light); font-size: 1rem;
   width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
 }
+.nav-search-results {
+  position: absolute; top: calc(100% + 8px); left: 0; right: 0;
+  background: #fff; border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 18px 44px rgba(0,0,0,.18); overflow-y: auto;
+  z-index: 300; max-height: 74vh;
+}
+.nav-search-item {
+  display: flex; align-items: center; gap: 12px; padding: 9px 14px;
+  text-decoration: none; color: var(--text); border-bottom: 1px solid #f2efe9;
+}
+.nav-search-item:hover { background: var(--bg); }
+.nav-search-item img {
+  width: 44px; height: 44px; object-fit: cover; border-radius: 8px;
+  flex-shrink: 0; background: #f5f5f5;
+}
+.nav-search-item .ns-name {
+  flex: 1; min-width: 0; font-size: .9rem; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nav-search-item .ns-price { font-weight: 700; color: var(--primary); font-size: .9rem; white-space: nowrap; }
+.nav-search-all {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 11px; font-size: .84rem; font-weight: 700; color: var(--primary);
+  text-decoration: none; background: var(--bg);
+}
+.nav-search-all:hover { background: #ece8df; }
+.nav-search-empty { padding: 18px 14px; text-align: center; color: var(--text-light); font-size: .88rem; }
 .nav-links { display: flex; align-items: center; gap: 4px; margin-left: auto; align-self: stretch; }
 .nav-links a, .nav-links button {
   padding: 6px 11px; border-radius: var(--radius); border: none;

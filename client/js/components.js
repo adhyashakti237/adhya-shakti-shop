@@ -76,8 +76,9 @@ function renderNavbar() {
         <span class="logo-text" style="font-family:Georgia,serif;line-height:1.1">Adhya <span>Shakti</span><br><span style="font-size:.55rem;letter-spacing:2px;font-weight:400;color:var(--text-light);text-transform:uppercase;font-family:system-ui">Shop &nbsp;·&nbsp; Est. 2026</span></span>
       </a>
       <div class="nav-search">
-        <input type="text" id="nav-search-input" placeholder="Search products..." aria-label="Search products" />
+        <input type="text" id="nav-search-input" placeholder="Search products..." aria-label="Search products" autocomplete="off" />
         <button class="search-btn" data-csp-onclick="doNavSearch()" aria-label="Search"><i class="fas fa-search"></i></button>
+        <div class="nav-search-results" id="nav-search-results" role="listbox" hidden></div>
       </div>
       <button class="hamburger" id="hamburger-btn" aria-label="Toggle menu">
         <span></span><span></span><span></span>
@@ -106,8 +107,22 @@ function renderNavbar() {
 
   const si = document.getElementById('nav-search-input');
   if (si && !si.dataset.listenerAttached) {
-    si.addEventListener('keydown', e => { if (e.key === 'Enter') doNavSearch(); });
+    si.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { closeNavSearchResults(); doNavSearch(); }
+      else if (e.key === 'Escape') closeNavSearchResults();
+    });
+    let navSearchTimer = null;
+    si.addEventListener('input', () => {
+      const q = si.value.trim();
+      clearTimeout(navSearchTimer);
+      if (q.length < 2) { closeNavSearchResults(); return; }
+      navSearchTimer = setTimeout(() => runNavSearchSuggest(q), 250);
+    });
     si.dataset.listenerAttached = '1';
+  }
+  if (!window.__navSearchOutsideBound) {
+    document.addEventListener('click', e => { if (!e.target.closest('.nav-search')) closeNavSearchResults(); });
+    window.__navSearchOutsideBound = true;
   }
 
   const navLinksEl = document.getElementById('nav-links');
@@ -248,6 +263,39 @@ function renderNavbar() {
 function doNavSearch() {
   const val = document.getElementById('nav-search-input')?.value.trim();
   if (val) Router.navigate(`/products?search=${encodeURIComponent(val)}`);
+}
+
+function closeNavSearchResults() {
+  const box = document.getElementById('nav-search-results');
+  if (box) { box.hidden = true; box.innerHTML = ''; }
+}
+
+let _navSearchReq = 0;
+async function runNavSearchSuggest(q) {
+  const box = document.getElementById('nav-search-results');
+  if (!box) return;
+  const reqId = ++_navSearchReq;
+  let res;
+  try { res = await api.get(`/products?search=${encodeURIComponent(q)}&per_page=6`); }
+  catch (e) { if (reqId === _navSearchReq) closeNavSearchResults(); return; }
+  if (reqId !== _navSearchReq) return;            // ignore stale responses
+  const items = res.products || [];
+  if (!items.length) {
+    box.innerHTML = `<div class="nav-search-empty">No matches for "${esc(q)}"</div>`;
+    box.hidden = false;
+    return;
+  }
+  box.innerHTML = items.map(p => {
+    let img = '';
+    try { const imgs = typeof p.images === 'string' ? JSON.parse(p.images || '[]') : (p.images || []); img = imgs[0] || ''; } catch (e) {}
+    const src = img ? esc(img) : 'https://placehold.co/44/f5f5f5/ccc?text=%20';
+    return `<a href="/product/${encodeURIComponent(p.id)}" data-link class="nav-search-item" role="option">
+        <img src="${src}" alt="" loading="lazy" data-csp-onerror="this.src='https://placehold.co/44/f5f5f5/ccc?text=%20'" />
+        <span class="ns-name">${esc(p.name)}</span>
+        <span class="ns-price">${fmt(p.price)}</span>
+      </a>`;
+  }).join('') + `<a href="/products?search=${encodeURIComponent(q)}" data-link class="nav-search-all">See all results <i class="fas fa-arrow-right"></i></a>`;
+  box.hidden = false;
 }
 
 function renderFooter() {
