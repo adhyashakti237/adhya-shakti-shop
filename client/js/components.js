@@ -84,6 +84,11 @@ function renderNavbar() {
         <span></span><span></span><span></span>
       </button>
       <nav class="nav-links" id="nav-links">
+        <div class="mobile-search">
+          <input type="text" id="m-search-input" placeholder="Search products..." aria-label="Search products" autocomplete="off" />
+          <i class="fas fa-search mobile-search-icon"></i>
+          <div class="nav-search-results" id="m-search-results" role="listbox" hidden></div>
+        </div>
         <a href="/" data-link>Home</a>
         <div class="nav-dropdown" id="nav-products-dropdown">
           <a href="/products" data-link class="nav-dropdown-trigger" aria-expanded="false" id="nav-dropdown-trigger">Products <i class="fas fa-chevron-down nav-chevron" id="nav-chevron"></i></a>
@@ -105,24 +110,16 @@ function renderNavbar() {
       </nav>
     </div>`;
 
-  const si = document.getElementById('nav-search-input');
-  if (si && !si.dataset.listenerAttached) {
-    si.addEventListener('keydown', e => {
-      if (e.key === 'Enter') { closeNavSearchResults(); doNavSearch(); }
-      else if (e.key === 'Escape') closeNavSearchResults();
+  wireLiveSearch(document.getElementById('nav-search-input'), document.getElementById('nav-search-results'));
+  wireLiveSearch(document.getElementById('m-search-input'), document.getElementById('m-search-results'));
+  if (!window.__liveSearchOutsideBound) {
+    document.addEventListener('click', e => {
+      if (!e.target.closest('.nav-search') && !e.target.closest('.mobile-search')) {
+        closeSearchResults(document.getElementById('nav-search-results'));
+        closeSearchResults(document.getElementById('m-search-results'));
+      }
     });
-    let navSearchTimer = null;
-    si.addEventListener('input', () => {
-      const q = si.value.trim();
-      clearTimeout(navSearchTimer);
-      if (q.length < 2) { closeNavSearchResults(); return; }
-      navSearchTimer = setTimeout(() => runNavSearchSuggest(q), 250);
-    });
-    si.dataset.listenerAttached = '1';
-  }
-  if (!window.__navSearchOutsideBound) {
-    document.addEventListener('click', e => { if (!e.target.closest('.nav-search')) closeNavSearchResults(); });
-    window.__navSearchOutsideBound = true;
+    window.__liveSearchOutsideBound = true;
   }
 
   const navLinksEl = document.getElementById('nav-links');
@@ -265,20 +262,18 @@ function doNavSearch() {
   if (val) Router.navigate(`/products?search=${encodeURIComponent(val)}`);
 }
 
-function closeNavSearchResults() {
-  const box = document.getElementById('nav-search-results');
+function closeSearchResults(box) {
   if (box) { box.hidden = true; box.innerHTML = ''; }
 }
 
-let _navSearchReq = 0;
-async function runNavSearchSuggest(q) {
-  const box = document.getElementById('nav-search-results');
+let _liveSearchReq = 0;
+async function fillSearchResults(box, q) {
   if (!box) return;
-  const reqId = ++_navSearchReq;
+  const reqId = ++_liveSearchReq;
   let res;
   try { res = await api.get(`/products?search=${encodeURIComponent(q)}&per_page=6`); }
-  catch (e) { if (reqId === _navSearchReq) closeNavSearchResults(); return; }
-  if (reqId !== _navSearchReq) return;            // ignore stale responses
+  catch (e) { if (reqId === _liveSearchReq) closeSearchResults(box); return; }
+  if (reqId !== _liveSearchReq) return;            // ignore stale responses
   const items = res.products || [];
   if (!items.length) {
     box.innerHTML = `<div class="nav-search-empty">No matches for "${esc(q)}"</div>`;
@@ -296,6 +291,21 @@ async function runNavSearchSuggest(q) {
       </a>`;
   }).join('') + `<a href="/products?search=${encodeURIComponent(q)}" data-link class="nav-search-all">See all results <i class="fas fa-arrow-right"></i></a>`;
   box.hidden = false;
+}
+
+function wireLiveSearch(input, box) {
+  if (!input || !box || input.dataset.liveWired) return;
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { closeSearchResults(box); const v = input.value.trim(); if (v) Router.navigate(`/products?search=${encodeURIComponent(v)}`); }
+    else if (e.key === 'Escape') closeSearchResults(box);
+  });
+  let t = null;
+  input.addEventListener('input', () => {
+    const q = input.value.trim(); clearTimeout(t);
+    if (q.length < 2) { closeSearchResults(box); return; }
+    t = setTimeout(() => fillSearchResults(box, q), 250);
+  });
+  input.dataset.liveWired = '1';
 }
 
 function renderFooter() {
