@@ -326,7 +326,20 @@ Router.register('/products', async (params) => {
           const dest = isCustomRelated ? '/custom-printing' : '/clothing';
           grid.innerHTML = `<div class="empty-state product-empty-state" style="grid-column:1/-1"><i class="fas fa-clock"></i><h3>Coming Soon</h3><p>This category isn't available yet — <a href="${dest}" data-link>see details and get notified</a>.</p><a href="/products" data-link class="btn btn-primary btn-sm mt16">Browse available products</a></div>`;
         } else {
-          grid.innerHTML = `<div class="empty-state product-empty-state" style="grid-column:1/-1"><i class="fas fa-search"></i><h3>No products found</h3><p>Try a different search, category, or price range.</p><button class="btn btn-primary btn-sm mt16" id="empty-clear-product-filters" type="button">Clear filters</button></div>`;
+          grid.innerHTML = `
+            <div class="empty-state product-empty-state" style="grid-column:1/-1">
+              <i class="fas fa-search"></i>
+              <h3>No products found${currentSearch ? ` for “${esc(currentSearch)}”` : ''}</h3>
+              <p>Try a different search, category, or price range.</p>
+              <button class="btn btn-primary btn-sm mt16" id="empty-clear-product-filters" type="button">Clear filters</button>
+            </div>
+            <div style="grid-column:1/-1;margin-top:8px">
+              <div class="text-center mb-16">
+                <div style="font-size:.78rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:6px">While You're Here</div>
+                <h3 style="font-size:1.25rem;font-weight:800;font-family:Georgia,serif">Popular Right Now</h3>
+              </div>
+              <div id="empty-search-rail" class="grid-4 merch-grid"><div class="spinner"></div></div>
+            </div>`;
           document.getElementById('empty-clear-product-filters')?.addEventListener('click', () => {
             currentCat = '';
             currentSearch = '';
@@ -338,6 +351,7 @@ Router.register('/products', async (params) => {
             buildCatFilter(allCats, '');
             loadProducts();
           });
+          fillProductRail('empty-search-rail', { includeRecent: true, fallbackNewest: true, limit: 4 });
         }
       } else {
         grid.innerHTML = products.map(productCard).join('');
