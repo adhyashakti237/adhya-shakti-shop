@@ -115,6 +115,7 @@
     'submitContact',
     'submitPopupEmail',
     'submitReview',
+    'quickAddToCart',
     'quickSecurityFilter',
     'verifyBackup',
     'clearRestoreDrillResult',

@@ -293,6 +293,20 @@ async function fillSearchResults(box, q) {
   box.hidden = false;
 }
 
+function quickAddToCart(btn) {
+  try {
+    const p = JSON.parse(decodeURIComponent(btn.getAttribute('data-qa-enc') || ''));
+    if (!p || !p.id) return;
+    Cart.add(p, 1);
+    const icon = btn.querySelector('i');
+    btn.classList.add('added');
+    if (icon) icon.className = 'fas fa-check';
+    setTimeout(() => { btn.classList.remove('added'); if (icon) icon.className = 'fas fa-cart-plus'; }, 1400);
+  } catch (e) {
+    toast('Could not add to cart. Please open the product page.', 'error');
+  }
+}
+
 function wireLiveSearch(input, box) {
   if (!input || !box || input.dataset.liveWired) return;
   input.addEventListener('keydown', e => {
@@ -427,6 +441,12 @@ function productCard(p) {
           aria-label="${Wishlist.has(p.id) ? 'Remove from wishlist' : 'Add to wishlist'}">
           <i class="fas fa-heart"></i>
         </button>
+        ${!p.has_variants && !outOfStock ? `<button class="product-quickadd-overlay"
+          data-qa-enc="${encodeURIComponent(JSON.stringify({ id: p.id, name: p.name, price: p.price, images: [img] }))}"
+          data-csp-onclick="event.preventDefault();event.stopPropagation();quickAddToCart(this)"
+          aria-label="Add ${esc(p.name)} to cart" title="Add to cart">
+          <i class="fas fa-cart-plus"></i>
+        </button>` : ''}
         ${outOfStock ? `<span class="product-badge-tag" style="background:#6b7280;color:#fff">Out of Stock</span>`
           : p.is_bestseller ? `<span class="product-badge-tag bestseller-badge"><i class="fas fa-fire"></i> Bestseller</span>`
           : isNew ? `<span class="product-badge-tag new-badge">✦ New</span>` : ''}
