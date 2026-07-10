@@ -4,7 +4,7 @@ Router.register('/admin/orders', async () => {
   const _gen = Router._gen;
 
   const initialParams = new URLSearchParams(location.search || '');
-  let orders = [], filterStatus = initialParams.get('status') || '', viewMode = initialParams.get('view') || '', searchTerm = '';
+  let orders = [], filterStatus = initialParams.get('status') || '', viewMode = initialParams.get('view') || '', searchTerm = (initialParams.get('q') || '').toLowerCase().trim();
   const ATTENTION_PENDING_DAYS = 2;
 
   function ageDays(dateValue) {

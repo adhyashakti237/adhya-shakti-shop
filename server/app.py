@@ -4288,7 +4288,17 @@ def delete_coupon(cid):
 def get_users():
     db = get_db()
     users = rows_to_list(db.execute(
-        "SELECT id,name,email,phone,role,created_at FROM users ORDER BY created_at DESC"
+        """SELECT u.id,u.name,u.email,u.phone,u.role,u.created_at,
+                  COUNT(o.id) AS order_count,
+                  COALESCE(SUM(CASE WHEN o.payment_status IN ('paid','refund_pending','refunded') THEN o.total ELSE 0 END),0) AS total_spent,
+                  MAX(o.created_at) AS last_order_at,
+                  COALESCE(SUM(CASE WHEN o.status='return_requested' THEN 1 ELSE 0 END),0) AS return_request_count
+           FROM users u
+           LEFT JOIN orders o
+             ON o.user_id=u.id
+             OR LOWER(o.customer_email)=LOWER(u.email)
+           GROUP BY u.id
+           ORDER BY u.created_at DESC"""
     ).fetchall())
     return jsonify(users)
 

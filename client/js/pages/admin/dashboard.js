@@ -4,7 +4,7 @@ function adminLayout(content, activePath) {
   const user = Auth.getUser();
 
   const allLinks = [
-    { href: '/admin',          icon: 'fa-tachometer-alt', label: 'Shop Dashboard',  adminOnly: true },
+    { href: '/admin',          icon: 'fa-tachometer-alt', label: strictAdmin ? 'Shop Dashboard' : 'Staff Dashboard' },
     { href: '/admin/products', icon: 'fa-box',            label: 'Products'                   },
     { href: '/admin/categories', icon: 'fa-layer-group', label: 'Categories', adminOnly: true },
     { href: '/admin/bulk-upload', icon: 'fa-file-import', label: 'Bulk Upload', adminOnly: true },
@@ -48,12 +48,135 @@ function adminLayout(content, activePath) {
     </div>`;
 }
 
+function adminDashboardAgeDays(dateValue) {
+  const t = new Date(String(dateValue || '').replace(' ', 'T')).getTime();
+  if (!Number.isFinite(t)) return 0;
+  return Math.floor((Date.now() - t) / 86400000);
+}
+
+function adminDashboardOrderCounts(orders = []) {
+  return {
+    pending: orders.filter(o => o.status === 'pending').length,
+    processing: orders.filter(o => o.status === 'processing').length,
+    returns: orders.filter(o => o.status === 'return_requested').length,
+    readyToProcess: orders.filter(o => o.status === 'pending' && o.payment_status === 'paid').length,
+    readyToShip: orders.filter(o => o.status === 'processing').length,
+    oldPending: orders.filter(o => o.status === 'pending' && adminDashboardAgeDays(o.created_at) >= 2).length,
+    missingTracking: orders.filter(o => o.status === 'shipped' && !String(o.tracking_number || '').trim()).length,
+    reviewRequests: orders.filter(o => o.status === 'delivered' && !o.review_requested_at).length,
+  };
+}
+
+function adminDashboardWorkCard(href, count, label, note, icon, tone = 'info') {
+  return `
+    <a href="${href}" data-link class="admin-work-card ${tone}">
+      <i class="fas ${icon}"></i>
+      <div><strong>${Number(count || 0)}</strong><span>${esc(label)}</span><small>${esc(note)}</small></div>
+    </a>`;
+}
+
+function adminOpsCard(href, icon, title, note, adminOnly = false) {
+  if (adminOnly && !Auth.isStrictAdmin()) return '';
+  return `
+    <a href="${href}" data-link class="admin-ops-card">
+      <i class="fas ${icon}"></i>
+      <div><strong>${esc(title)}</strong><span>${esc(note)}</span></div>
+    </a>`;
+}
+
+function renderLowStockMiniList(products = []) {
+  if (!products.length) {
+    return '<div class="admin-focus-empty"><i class="fas fa-check-circle"></i><span>No low-stock products in this view.</span></div>';
+  }
+  return products.map(p => `
+    <a href="/admin/products?filter=low_stock&search=${encodeURIComponent(p.name || '')}" data-link class="admin-focus-item">
+      ${safeMediaUrl((p.images || [])[0]) ? `<img src="${safeMediaUrl((p.images || [])[0])}" alt="" />` : '<span class="admin-focus-thumb"></span>'}
+      <div><strong>${esc(p.name || 'Product')}</strong><span>${Number(p.stock || 0) <= 0 ? 'Out of stock' : `${Number(p.stock || 0)} left`}</span></div>
+    </a>`).join('');
+}
+
+function renderOrderMiniList(orders = []) {
+  if (!orders.length) {
+    return '<div class="admin-focus-empty"><i class="fas fa-receipt"></i><span>No orders in this queue.</span></div>';
+  }
+  return orders.slice(0, 6).map(o => `
+    <a href="/admin/orders?q=${encodeURIComponent(o.order_number || '')}" data-link class="admin-focus-item">
+      <span class="admin-focus-icon"><i class="fas fa-receipt"></i></span>
+      <div><strong>${esc(o.order_number || 'Order')}</strong><span>${esc(o.customer_name || 'Customer')} · ${fmt(o.total || 0)} · ${esc((o.status || '').replace(/_/g, ' '))}</span></div>
+    </a>`).join('');
+}
+
+async function renderStaffDashboard(gen) {
+  const [ordersRes, lowRes, notifyRes] = await Promise.all([
+    api.get('/admin/orders'),
+    api.get('/admin/products?status=low_stock&per_page=6'),
+    api.get('/admin/products?status=notify_waiting&per_page=1'),
+  ]);
+  if (Router.stale(gen)) return;
+
+  const orders = Array.isArray(ordersRes) ? ordersRes : [];
+  const counts = adminDashboardOrderCounts(orders);
+  const health = lowRes.health || {};
+  const notifyHealth = notifyRes.health || {};
+  const recent = orders.slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).slice(0, 6);
+  const attentionTotal = counts.readyToProcess + counts.readyToShip + counts.returns + counts.missingTracking + counts.oldPending;
+
+  document.querySelector('.admin-content').innerHTML = `
+    <div class="admin-page-title">Staff Dashboard</div>
+    <div class="admin-staff-hero">
+      <div>
+        <strong>Today's store workflow</strong>
+        <span>${attentionTotal ? `${attentionTotal} item${attentionTotal === 1 ? '' : 's'} need attention.` : 'No urgent order work is showing right now.'}</span>
+      </div>
+      <a href="/admin/orders?view=attention" data-link class="btn btn-primary"><i class="fas fa-list-check"></i> Open work queue</a>
+    </div>
+    <div class="admin-work-grid" style="margin-bottom:18px">
+      ${adminDashboardWorkCard('/admin/orders?view=ready_to_process', counts.readyToProcess, 'Ready to process', 'Paid pending orders waiting to be prepared.', 'fa-box-open', 'info')}
+      ${adminDashboardWorkCard('/admin/orders?view=ready_to_ship', counts.readyToShip, 'Ready to ship', 'Processing orders that need tracking.', 'fa-truck-ramp-box', 'info')}
+      ${adminDashboardWorkCard('/admin/orders?status=return_requested', counts.returns, 'Returns', 'Return requests waiting for review.', 'fa-undo-alt', 'danger')}
+      ${adminDashboardWorkCard('/admin/orders?view=missing_tracking', counts.missingTracking, 'Missing tracking', 'Shipped orders without tracking numbers.', 'fa-truck', 'warn')}
+      ${adminDashboardWorkCard('/admin/orders?view=old_pending', counts.oldPending, 'Old pending', 'Pending orders older than 2 days.', 'fa-calendar-xmark', 'danger')}
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-icon orders"><i class="fas fa-clock"></i></div><div><div class="stat-value">${counts.pending}</div><div class="stat-label">Pending</div></div></div>
+      <div class="stat-card"><div class="stat-icon products"><i class="fas fa-box-open"></i></div><div><div class="stat-value">${counts.processing}</div><div class="stat-label">Processing</div></div></div>
+      <div class="stat-card"><div class="stat-icon customers"><i class="fas fa-triangle-exclamation"></i></div><div><div class="stat-value">${Number(health.low_stock || 0)}</div><div class="stat-label">Low Stock</div></div></div>
+      <div class="stat-card"><div class="stat-icon revenue"><i class="fas fa-envelope-open-text"></i></div><div><div class="stat-value">${Number(notifyHealth.notify_waiting || 0)}</div><div class="stat-label">Restock Requests</div></div></div>
+    </div>
+    <div class="admin-ops-panel">
+      <div class="admin-alert-board-head">
+        <div><strong>Quick actions</strong><span>Shortcuts for repeated staff work.</span></div>
+      </div>
+      <div class="admin-ops-grid">
+        ${adminOpsCard('/admin/orders', 'fa-shopping-bag', 'Orders', 'Search, update status, print slips.')}
+        ${adminOpsCard('/admin/products?filter=low_stock', 'fa-triangle-exclamation', 'Low stock', 'Check items that may need restock.')}
+        ${adminOpsCard('/admin/products?filter=no_image', 'fa-image', 'No image', 'Find products missing photos.')}
+        ${adminOpsCard('/admin/accounts/inventory', 'fa-boxes-stacked', 'Inventory', 'Review stock and inventory records.')}
+      </div>
+    </div>
+    <div class="grid-2" style="gap:18px">
+      <div class="card">
+        <div class="card-header flex-between"><span>Recent orders</span><a href="/admin/orders" data-link class="btn btn-sm btn-ghost">View all</a></div>
+        <div class="admin-focus-list">${renderOrderMiniList(recent)}</div>
+      </div>
+      <div class="card">
+        <div class="card-header flex-between"><span>Low-stock focus</span><a href="/admin/products?filter=low_stock" data-link class="btn btn-sm btn-ghost">Open report</a></div>
+        <div class="admin-focus-list">${renderLowStockMiniList(lowRes.products || [])}</div>
+      </div>
+    </div>`;
+}
+
 Router.register('/admin', async () => {
   if (!Auth.isAdmin()) { Router.navigate('/admin/login'); return; }
-  // Staff cannot see the dashboard — send them to orders
-  if (Auth.isStaff()) { Router.navigate('/admin/orders'); return; }
   adminLayout('<div class="spinner"></div>', '/admin');
   const _gen = Router._gen;
+  if (Auth.isStaff()) {
+    try { await renderStaffDashboard(_gen); } catch (e) {
+      if (Router.stale(_gen)) return;
+      document.querySelector('.admin-content').innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-circle"></i><h3>${esc(e.message)}</h3><p>Open Orders if the dashboard could not load.</p></div>`;
+    }
+    return;
+  }
   try {
     const stats = await api.get('/admin/stats');
     if (Router.stale(_gen)) return;
@@ -63,7 +186,7 @@ Router.register('/admin', async () => {
       { count: stats.pending_orders || 0, label: 'Pending orders', note: 'Review and move paid orders into processing.', icon: 'fa-clock', href: '/admin/orders?status=pending', tone: 'warn' },
       { count: stats.processing_orders || 0, label: 'Processing orders', note: 'Prepare orders and add tracking before shipping.', icon: 'fa-box-open', href: '/admin/orders?status=processing', tone: 'info' },
       { count: stats.return_requests || 0, label: 'Return requests', note: 'Inspect packages before refund decisions.', icon: 'fa-undo-alt', href: '/admin/orders?status=return_requested', tone: 'danger' },
-      { count: stats.low_stock?.length || 0, label: 'Low-stock products', note: 'Restock or deactivate products that cannot be sold.', icon: 'fa-triangle-exclamation', href: '/admin/products?filter=low-stock', tone: 'warn' },
+      { count: stats.low_stock?.length || 0, label: 'Low-stock products', note: 'Restock or deactivate products that cannot be sold.', icon: 'fa-triangle-exclamation', href: '/admin/products?filter=low_stock', tone: 'warn' },
       { count: stats.missing_tracking_orders || 0, label: 'Missing tracking', note: 'Shipped orders should have a tracking number.', icon: 'fa-truck', href: '/admin/orders?status=shipped', tone: 'warn' },
       { count: stats.old_pending_orders || 0, label: 'Old pending orders', note: 'Pending orders older than 2 days need review.', icon: 'fa-calendar-xmark', href: '/admin/orders?status=pending', tone: 'danger' },
     ].filter(a => Number(a.count || 0) > 0);
@@ -84,6 +207,19 @@ Router.register('/admin', async () => {
             </a>`).join('')}
         </div>
       </div>` : ''}
+      <div class="admin-ops-panel">
+        <div class="admin-alert-board-head">
+          <div><strong>Operations shortcuts</strong><span>Fast paths for the work you check most often.</span></div>
+        </div>
+        <div class="admin-ops-grid">
+          ${adminOpsCard('/admin/orders?view=attention', 'fa-list-check', 'Order work queue', 'Returns, old pending, shipping, and review follow-up.')}
+          ${adminOpsCard('/admin/products?filter=low_stock', 'fa-triangle-exclamation', 'Low-stock report', 'Restock or deactivate items before customers get stuck.')}
+          ${adminOpsCard('/admin/products?filter=no_image', 'fa-image', 'Missing images', 'Find products that need photos.')}
+          ${adminOpsCard('/admin/products?filter=no_cost', 'fa-dollar-sign', 'Missing cost', 'Protect product profit reporting.')}
+          ${adminOpsCard('/admin/accounts', 'fa-chart-line', 'Books dashboard', 'Sales, purchases, expenses, reports.')}
+          ${adminOpsCard('/admin/security', 'fa-shield-halved', 'Security center', 'Backups, events, health, and exports.', true)}
+        </div>
+      </div>
       <div class="stats-grid">
         <div class="stat-card"><div class="stat-icon orders"><i class="fas fa-shopping-bag"></i></div><div><div class="stat-value">${stats.total_orders}</div><div class="stat-label">Total Orders</div></div></div>
         <div class="stat-card"><div class="stat-icon revenue"><i class="fas fa-dollar-sign"></i></div><div><div class="stat-value">${fmt(stats.total_revenue)}</div><div class="stat-label">Revenue</div></div></div>

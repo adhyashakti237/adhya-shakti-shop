@@ -5,9 +5,26 @@ Router.register('/admin/products', async () => {
 
   const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL'];
   const PER_PAGE = 20;
+  const initialParams = new URLSearchParams(location.search || '');
+  const filterAliases = {
+    'low-stock': 'low_stock',
+    'out-of-stock': 'out_of_stock',
+    'no-image': 'no_image',
+    'no-category': 'no_category',
+    'no-cost': 'no_cost',
+    'back-in-stock': 'notify_waiting',
+  };
+  const normalizeProductFilter = value => {
+    const raw = String(value || '').trim();
+    return filterAliases[raw] || raw || 'active';
+  };
   let categories = [], products = [], images = [], variantColors = [], productById = new Map();
   let categoryTree = { categories: [] };
-  let currentPage = 1, totalProducts = 0, searchQuery = '', productFilter = 'active', productHealth = {};
+  let currentPage = parseInt(initialParams.get('page'), 10) || 1;
+  let totalProducts = 0;
+  let searchQuery = initialParams.get('search') || '';
+  let productFilter = normalizeProductFilter(initialParams.get('filter') || initialParams.get('status') || 'active');
+  let productHealth = {};
 
   function catChildren(node) { return (node && (node.children || node.categories)) || []; }
   function flattenAdminCategories(tree) {
@@ -112,7 +129,7 @@ Router.register('/admin/products', async () => {
 
   window.goProductPage = (p) => { currentPage = p; loadAll(); };
   window.setProductFilter = (filter) => {
-    productFilter = filter || 'active';
+    productFilter = normalizeProductFilter(filter);
     currentPage = 1;
     loadAll();
   };

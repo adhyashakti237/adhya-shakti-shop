@@ -41,10 +41,35 @@ Router.register('/admin/users', async () => {
     return 'var(--success)';
   }
 
+  function customerSummary(list) {
+    const customers = list.filter(u => u.role === 'customer');
+    return {
+      customers: customers.length,
+      buyers: customers.filter(u => Number(u.order_count || 0) > 0).length,
+      repeat: customers.filter(u => Number(u.order_count || 0) > 1).length,
+      spent: customers.reduce((s, u) => s + Number(u.total_spent || 0), 0),
+    };
+  }
+
+  function userActivityHtml(u) {
+    if (u.role !== 'customer') {
+      return `<div class="admin-user-activity"><strong>${u.role === 'admin' ? 'Full admin access' : 'Staff access'}</strong><span>${u.role === 'admin' ? 'Can manage security, settings, users, and all store data.' : 'Can manage orders, products, reviews, and bookkeeping areas.'}</span></div>`;
+    }
+    const orders = Number(u.order_count || 0);
+    return `<div class="admin-user-activity">
+      <strong>${orders} order${orders === 1 ? '' : 's'} · ${fmt(u.total_spent || 0)}</strong>
+      <span>${u.last_order_at ? `Last order ${fmtDate(u.last_order_at)}` : 'No orders yet'}${Number(u.return_request_count || 0) ? ` · ${Number(u.return_request_count || 0)} return request${Number(u.return_request_count || 0) === 1 ? '' : 's'}` : ''}</span>
+      ${u.email ? `<a href="/admin/orders?q=${encodeURIComponent(u.email)}" data-link>View orders</a>` : ''}
+    </div>`;
+  }
+
   function renderUsers() {
+    const shown = filtered();
+    const base = baseFiltered();
+    const summary = customerSummary(users);
     document.querySelector('.admin-content').innerHTML = `
       <div class="admin-page-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-        <span>${view === 'staff' ? 'Staff' : 'Customers'} (${filtered().length})</span>
+        <span>${view === 'staff' ? 'Staff' : 'Customers'} (${shown.length})</span>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <div style="display:flex;gap:6px">
             <button class="btn btn-sm ${view==='customers'?'btn-primary':'btn-outline'}" data-csp-onclick="setUserView('customers')">Customers</button>
@@ -53,6 +78,16 @@ Router.register('/admin/users', async () => {
           ${strictAdmin ? `<button class="btn btn-primary btn-sm" data-csp-onclick="openCreateUser()"><i class="fas fa-plus"></i> Add ${view==='staff'?'staff':'customer'}</button>` : ''}
         </div>
       </div>
+      ${view === 'customers' ? `
+      <div class="admin-customer-summary-grid">
+        <div><i class="fas fa-users"></i><strong>${summary.customers}</strong><span>Total customers</span></div>
+        <div><i class="fas fa-bag-shopping"></i><strong>${summary.buyers}</strong><span>With orders</span></div>
+        <div><i class="fas fa-rotate"></i><strong>${summary.repeat}</strong><span>Repeat buyers</span></div>
+        <div><i class="fas fa-dollar-sign"></i><strong>${fmt(summary.spent)}</strong><span>Tracked spend</span></div>
+      </div>` : `
+      <div class="admin-ops-panel">
+        <div class="admin-alert-board-head"><div><strong>Staff access reminder</strong><span>Staff can manage operational areas. Strict admin-only controls stay protected.</span></div></div>
+      </div>`}
       <div class="admin-user-toolbar">
         <label class="admin-search-wrap">
           <i class="fas fa-search"></i>
@@ -60,7 +95,7 @@ Router.register('/admin/users', async () => {
             placeholder="Search ${view === 'staff' ? 'staff by name, email, phone, role' : 'customers by name, email, phone'}"
             data-csp-oninput="searchAdminUsers()" />
         </label>
-        <span class="text-muted text-sm">${filtered().length} shown from ${baseFiltered().length} ${view === 'staff' ? 'staff/admin' : 'customers'}</span>
+        <span class="text-muted text-sm">${shown.length} shown from ${base.length} ${view === 'staff' ? 'staff/admin' : 'customers'}</span>
       </div>
       <div class="card">
         <div class="admin-mobile-scroll-hint"><i class="fas fa-arrows-left-right"></i> Swipe sideways to view all columns</div>
@@ -71,36 +106,38 @@ Router.register('/admin/users', async () => {
             <th>Email</th>
             <th>Phone</th>
             <th>Role</th>
+            <th>Activity</th>
             <th>Joined</th>
             ${strictAdmin ? '<th style="text-align:center">Actions</th>' : ''}
           </tr>
         </thead>
         <tbody>
-          ${filtered().map(u => `
+          ${shown.map(u => `
             <tr>
-              <td>
+              <td data-label="Name">
                 <div style="display:flex;align-items:center;gap:10px">
                   <div style="width:36px;height:36px;border-radius:50%;background:${roleColor(u.role)};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:.95rem">${esc((u.name || '?')[0].toUpperCase())}</div>
                   <strong>${esc(u.name)}</strong>
                 </div>
               </td>
-              <td>${esc(u.email)}</td>
-              <td>${esc(u.phone || '-')}</td>
-              <td>
+              <td data-label="Email">${esc(u.email)}</td>
+              <td data-label="Phone">${esc(u.phone || '-')}</td>
+              <td data-label="Role">
                 <span class="badge" style="background:${roleColor(u.role)}20;color:${roleColor(u.role)};border:1px solid ${roleColor(u.role)}40;text-transform:capitalize">
                   ${u.role === 'admin' ? '<i class="fas fa-shield-alt" style="font-size:.7rem;margin-right:3px"></i>' : u.role === 'staff' ? '<i class="fas fa-briefcase" style="font-size:.7rem;margin-right:3px"></i>' : '<i class="fas fa-user" style="font-size:.7rem;margin-right:3px"></i>'}
                   ${u.role}
                 </span>
               </td>
-              <td>${fmtDate(u.created_at)}</td>
+              <td data-label="Activity">${userActivityHtml(u)}</td>
+              <td data-label="Joined">${fmtDate(u.created_at)}</td>
               ${strictAdmin ? `
-              <td>
+              <td data-label="Actions">
                 <div style="display:flex;gap:6px;justify-content:center">
                   <button class="btn btn-sm btn-outline" data-csp-onclick="openEditUser('${u.id}')" title="Edit user" aria-label="Edit ${esc(u.name)}"><i class="fas fa-edit"></i></button>
                   ${u.id !== Auth.getUser()?.id ? `<button class="btn btn-sm btn-ghost" data-csp-onclick="deleteUser('${u.id}')" title="Delete user" aria-label="Delete ${esc(u.name)}"><i class="fas fa-trash" style="color:var(--danger)"></i></button>` : ''}
                 </div>
               </td>` : ''}
-            </tr>`).join('') || `<tr><td colspan="${strictAdmin ? 6 : 5}" class="text-muted">No ${view === 'staff' ? 'staff' : 'customers'} match this search.</td></tr>`}
+            </tr>`).join('') || `<tr><td colspan="${strictAdmin ? 7 : 6}" class="text-muted">No ${view === 'staff' ? 'staff' : 'customers'} match this search.</td></tr>`}
         </tbody>
       </table></div></div>`;
   }
