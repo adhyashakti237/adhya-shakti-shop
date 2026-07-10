@@ -15,6 +15,8 @@ const Router = {
   },
 
   navigate(path){
+    if (!path) return;
+    if (path.startsWith(Router.base + '/')) path = path.slice(Router.base.length);
     const url = Router.toUrl(path);
     if (url !== location.pathname) history.pushState({}, '', url);
     Router.resolve();
@@ -35,12 +37,18 @@ const Router = {
 
   async run(path){
     const handler = Router.table[path] || Router.table['*'];
+    const app = document.getElementById('app');
+    app?.setAttribute('aria-busy', 'true');
     try { await handler(); }
     catch(e){
-      document.getElementById('app').innerHTML =
+      app.innerHTML =
         `<div class="center-card"><div class="empty"><i class="fa-solid fa-triangle-exclamation"></i>
          <p>${esc(e.message || 'Something went wrong')}</p>
          <button class="btn mt16" data-csp-onclick="location.reload()">Reload</button></div></div>`;
+    } finally {
+      app?.removeAttribute('aria-busy');
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      requestAnimationFrame(() => app?.focus?.({ preventScroll: true }));
     }
   },
 };
@@ -48,7 +56,12 @@ const Router = {
 // Intercept in-app links + back/forward.
 document.addEventListener('click', e => {
   const a = e.target.closest('a[data-link]');
-  if (a){ e.preventDefault(); Router.navigate(a.getAttribute('href')); }
+  if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  if ((a.target && a.target !== '_self') || a.hasAttribute('download')) return;
+  const href = a.getAttribute('href') || a.dataset.href;
+  if (!href || href.startsWith('#') || /^(https?:|mailto:|tel:)/i.test(href)) return;
+  e.preventDefault();
+  Router.navigate(href);
 });
 window.addEventListener('popstate', () => Router.resolve());
 

@@ -8,7 +8,11 @@ const Router = {
   stale(gen) { return gen !== Router._gen; },
   register(path, handler) { Router.routes[path] = handler; },
   navigate(path, push = true) {
+    if (!path) return;
+    if (/^(https?:|mailto:|tel:)/i.test(path)) { location.href = path; return; }
+    const current = location.pathname + location.search + location.hash;
     if (push) history.pushState({}, '', path);
+    else if (path === current) Router._gen++;
     Router.render(path);
   },
   pageDescriptions: {
@@ -170,13 +174,42 @@ const Router = {
   cleanPageDom() {
     Router._pageDomCleanup.forEach(sel => document.querySelectorAll(sel).forEach(el => el.remove()));
   },
+  closeNavigationUi() {
+    document.body.classList.remove('mobile-nav-open');
+    document.getElementById('nav-links')?.classList.remove('open');
+    document.getElementById('hamburger-btn')?.classList.remove('open');
+    document.getElementById('hamburger-btn')?.setAttribute('aria-expanded', 'false');
+    document.getElementById('nav-cat-menu')?.classList.remove('open');
+    document.getElementById('nav-chevron')?.classList.remove('open');
+    document.getElementById('nav-dropdown-trigger')?.setAttribute('aria-expanded', 'false');
+  },
+  finishNavigation(gen, path) {
+    if (Router.stale(gen)) return;
+    const app = document.getElementById('app');
+    app?.removeAttribute('aria-busy');
+    Router.closeNavigationUi();
+    const hash = (path.split('#')[1] || '').trim();
+    requestAnimationFrame(() => {
+      if (Router.stale(gen)) return;
+      if (hash) {
+        const target = document.getElementById(decodeURIComponent(hash));
+        if (target) target.scrollIntoView({ block: 'start' });
+      } else {
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      }
+      app?.focus?.({ preventScroll: true });
+    });
+  },
 
   render(path) {
     Router.cleanPageGlobals();
     Router.cleanPageDom();
     Router._gen++;
+    const gen = Router._gen;
     const app = document.getElementById('app');
-    const cleanPath = path.split('?')[0];
+    app?.setAttribute('aria-busy', 'true');
+    Router.closeNavigationUi();
+    const cleanPath = path.split(/[?#]/)[0];
     // Match exact then prefix
     let handler = Router.routes[cleanPath] || Router.routes[path];
     if (!handler) {
@@ -203,17 +236,36 @@ const Router = {
     // Remove JSON-LD injected by the previous page before the next page adds its own.
     document.querySelectorAll('script[type="application/ld+json"]').forEach(el => el.remove());
     renderNavbar();
-    handler(getParams(path));
+    let result;
+    try {
+      result = handler(getParams(path));
+    } catch (e) {
+      console.error(e);
+      app.innerHTML = `<div class="container section empty-state"><i class="fas fa-triangle-exclamation"></i><h3>Something went wrong</h3><p>Please refresh the page or contact us if it keeps happening.</p><button class="btn btn-primary mt-16" data-csp-onclick="location.reload()">Reload</button></div>`;
+    }
     renderFooter();
-    window.scrollTo(0, 0);
+    Promise.resolve(result)
+      .catch(e => {
+        if (Router.stale(gen)) return;
+        console.error(e);
+        app.innerHTML = `<div class="container section empty-state"><i class="fas fa-triangle-exclamation"></i><h3>Something went wrong</h3><p>Please refresh the page or contact us if it keeps happening.</p><button class="btn btn-primary mt-16" data-csp-onclick="location.reload()">Reload</button></div>`;
+      })
+      .finally(() => Router.finishNavigation(gen, path));
   },
   init() {
-    window.addEventListener('popstate', () => Router.render(location.pathname + location.search));
+    window.addEventListener('popstate', () => Router.render(location.pathname + location.search + location.hash));
     document.addEventListener('click', e => {
       const a = e.target.closest('[data-link]');
-      if (a) { e.preventDefault(); Router.navigate(a.getAttribute('href') || a.dataset.href); }
+      if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      if ((a.target && a.target !== '_self') || a.hasAttribute('download')) return;
+      const href = a.getAttribute('href') || a.dataset.href;
+      if (!href || href.startsWith('#') || /^(mailto:|tel:)/i.test(href)) return;
+      const url = new URL(href, location.origin);
+      if (url.origin !== location.origin) return;
+      e.preventDefault();
+      Router.navigate(url.pathname + url.search + url.hash);
     });
-    Router.render(location.pathname + location.search);
+    Router.render(location.pathname + location.search + location.hash);
   }
 };
 
