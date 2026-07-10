@@ -21,6 +21,8 @@ Router.register('/admin/orders', async () => {
     const flags = [];
     if (o.status === 'return_requested') flags.push({ label: 'Return requested', icon: 'fa-undo-alt', tone: 'danger' });
     if (o.status === 'return_requested' && !String(o.return_reason || '').trim()) flags.push({ label: 'Missing reason', icon: 'fa-message', tone: 'warn' });
+    if (o.status === 'cancelled' && (o.payment_status === 'refund_pending' || o.refund_result === 'manual_refund_required')) flags.push({ label: 'Manual refund needed', icon: 'fa-credit-card', tone: 'danger' });
+    if (o.status === 'cancelled' && o.cancelled_by === 'customer') flags.push({ label: 'Cancelled by customer', icon: 'fa-user-xmark', tone: 'warn' });
     if (o.status === 'pending' && ageDays(o.created_at) >= ATTENTION_PENDING_DAYS) flags.push({ label: `${ageDays(o.created_at)} days pending`, icon: 'fa-clock', tone: 'warn' });
     if (o.status === 'shipped' && !String(o.tracking_number || '').trim()) flags.push({ label: 'Missing tracking', icon: 'fa-truck', tone: 'warn' });
     if (o.status === 'pending' && o.payment_status === 'paid') flags.push({ label: 'Needs processing', icon: 'fa-box-open', tone: 'info' });
@@ -47,6 +49,7 @@ Router.register('/admin/orders', async () => {
     if (status === 'shipped') return { tone: 'info', icon: 'fa-house-circle-check', label: 'Watch delivery', note: 'Mark delivered after the carrier confirms delivery.' };
     if (status === 'delivered' && !o.review_requested_at) return { tone: 'success', icon: 'fa-star', label: 'Request review', note: 'Send a review request after confirming the order is complete.' };
     if (status === 'delivered') return { tone: 'success', icon: 'fa-check-circle', label: 'Complete', note: 'Order is delivered and review request was already sent.' };
+    if (status === 'cancelled' && (payment === 'refund_pending' || o.refund_result === 'manual_refund_required')) return { tone: 'danger', icon: 'fa-credit-card', label: 'Manual refund needed', note: 'Stock was restored, but Stripe refund still needs review.' };
     if (status === 'cancelled') return { tone: 'danger', icon: 'fa-ban', label: 'Cancelled', note: 'No fulfillment action needed.' };
     if (status === 'return_received') return { tone: 'info', icon: 'fa-box-open', label: 'Return received', note: 'Refund workflow has been handled or is pending.' };
     return { tone: 'info', icon: 'fa-circle-info', label: 'Review order', note: 'Open details and confirm the next safe step.' };
@@ -114,6 +117,44 @@ Router.register('/admin/orders', async () => {
           ${a.line2 ? `<span>${esc(a.line2)}</span>` : ''}
           <span>${esc(a.cityStateZip || '')}</span>
           <span>United States</span>
+        </div>
+      </div>`;
+  }
+
+  function cancelSourceLabel(value) {
+    const v = String(value || '').toLowerCase();
+    if (v === 'customer') return 'Customer';
+    if (v === 'staff') return 'Staff';
+    if (v === 'admin') return 'Admin';
+    return v ? cleanStatusLabel(v) : 'Not recorded';
+  }
+
+  function refundResultText(o) {
+    const result = String(o.refund_result || '').toLowerCase();
+    if (result === 'refunded_automatically') return { tone: 'success', icon: 'fa-circle-check', label: 'Refunded automatically through Stripe' };
+    if (result === 'manual_refund_required') return { tone: 'danger', icon: 'fa-triangle-exclamation', label: 'Manual refund needed in Stripe' };
+    if (result === 'no_payment_to_refund') return { tone: 'info', icon: 'fa-circle-info', label: 'No payment refund was needed' };
+    if (o.payment_status === 'refunded') return { tone: 'success', icon: 'fa-circle-check', label: 'Refunded' };
+    if (o.payment_status === 'refund_pending') return { tone: 'danger', icon: 'fa-triangle-exclamation', label: 'Refund pending - review Stripe' };
+    return { tone: 'info', icon: 'fa-circle-info', label: 'Refund status not recorded' };
+  }
+
+  function cancellationHtml(o) {
+    if (o.status !== 'cancelled' && !o.cancelled_at && !o.refund_result) return '';
+    const refund = refundResultText(o);
+    const source = cancelSourceLabel(o.cancelled_by);
+    const isCustomer = String(o.cancelled_by || '').toLowerCase() === 'customer';
+    return `
+      <div class="admin-order-block" style="margin-bottom:16px;border-color:${refund.tone === 'danger' ? '#fecaca' : '#bbf7d0'};background:${refund.tone === 'danger' ? '#fef2f2' : '#f0fdf4'}">
+        <div class="admin-order-block-title" style="color:${refund.tone === 'danger' ? '#b91c1c' : '#047857'}">
+          <i class="fas ${isCustomer ? 'fa-user-xmark' : 'fa-ban'}"></i>
+          Cancelled by ${esc(source)}
+        </div>
+        <div class="admin-order-block-body" style="color:#25332f">
+          <span><strong>Cancellation time:</strong> ${o.cancelled_at ? fmtDateTime(o.cancelled_at) : 'Not recorded'}</span>
+          <span><strong>Stock:</strong> Returned to inventory automatically</span>
+          <span><strong>Refund:</strong> <i class="fas ${refund.icon}"></i> ${esc(refund.label)}</span>
+          <span><strong>Audit note:</strong> Customer cancellation restored stock, voided the bookkeeping sale, and updated refund status.</span>
         </div>
       </div>`;
   }
@@ -427,6 +468,7 @@ Router.register('/admin/orders', async () => {
             <div class="admin-order-block-title" style="color:#9a3412"><i class="fas fa-message"></i> Customer return reason</div>
             <div class="admin-order-block-body" style="white-space:pre-wrap;color:#4a3221">${esc(o.return_reason)}</div>
           </div>` : ''}
+        ${cancellationHtml(o)}
         <div class="admin-order-action-panel">
           <div>
             <div class="admin-order-block-title" style="margin-bottom:6px"><i class="fas fa-list-check"></i> Recommended next step</div>

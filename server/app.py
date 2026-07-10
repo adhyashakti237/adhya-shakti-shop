@@ -685,6 +685,35 @@ def email_admin_return_request(order):
     send_order_email(ORDER_MAIL_USER, f'Return Request - {order.get("order_number")} | Adhya Shakti Shop', html)
 
 
+def email_admin_order_cancelled(order, refund_result, restored_count=0):
+    result_labels = {
+        'refunded_automatically': 'Refunded automatically through Stripe',
+        'manual_refund_required': 'Manual refund needed in Stripe',
+        'no_payment_to_refund': 'No payment refund was needed',
+    }
+    result = result_labels.get(refund_result, 'Refund status needs review')
+    warning = ''
+    if refund_result == 'manual_refund_required':
+        warning = """
+<div class="warning">
+  Stripe did not confirm an automatic refund. Open Stripe and process this refund manually before marking it complete.
+</div>"""
+    html = _email_html(f"""
+<h2>Customer Cancelled Order</h2>
+{warning}
+<div class="note">
+  <strong>Order:</strong> {h(order.get('order_number'))}<br>
+  <strong>Customer:</strong> {h(order.get('customer_name'))}<br>
+  <strong>Email:</strong> <a href="mailto:{h(order.get('customer_email'))}" style="color:#1D5C4A">{h(order.get('customer_email'))}</a><br>
+  <strong>Total:</strong> {_money(order.get('total'))}<br>
+  <strong>Refund result:</strong> {h(result)}<br>
+  <strong>Stock restored:</strong> {int(restored_count or 0)} product{'' if int(restored_count or 0) == 1 else 's'}
+</div>
+<p>The order status was changed to <strong>Cancelled</strong>. If the refund result says manual refund needed, complete the refund in Stripe.</p>
+<a href="https://adhyashaktishop.com/admin/orders?status=cancelled" class="cta">Review Cancelled Orders</a>""", f'Order {order.get("order_number")} was cancelled by the customer. Refund result: {result}.')
+    send_order_email(ORDER_MAIL_USER, f'Customer Cancelled Order - {order.get("order_number")} | Adhya Shakti Shop', html)
+
+
 def email_bulk_order_notification(name, business, cust_email, phone, product_type, quantity, needed_by, message):
     shop_html = _email_html(f"""
 <h2>New Bulk Order Request</h2>
@@ -1217,6 +1246,9 @@ def init_db():
             tracking_number TEXT,
             notes TEXT,
             return_reason TEXT,
+            cancelled_by TEXT,
+            cancelled_at TEXT,
+            refund_result TEXT,
             review_requested_at TEXT,
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now')),
@@ -1523,6 +1555,9 @@ def init_db():
         "ALTER TABLE orders ADD COLUMN payment_intent_id TEXT",
         "ALTER TABLE orders ADD COLUMN review_requested_at TEXT",
         "ALTER TABLE orders ADD COLUMN return_reason TEXT",
+        "ALTER TABLE orders ADD COLUMN cancelled_by TEXT",
+        "ALTER TABLE orders ADD COLUMN cancelled_at TEXT",
+        "ALTER TABLE orders ADD COLUMN refund_result TEXT",
         "ALTER TABLE products ADD COLUMN allow_custom_print INTEGER DEFAULT 0",
         "ALTER TABLE contact_messages ADD COLUMN inquiry_type TEXT",
         "ALTER TABLE contact_messages ADD COLUMN order_number TEXT",
@@ -3503,6 +3538,9 @@ def public_order_payload(order):
         'status': o.get('status') or '',
         'tracking_number': o.get('tracking_number') or '',
         'return_reason': o.get('return_reason') or '',
+        'cancelled_by': o.get('cancelled_by') or '',
+        'cancelled_at': o.get('cancelled_at') or '',
+        'refund_result': o.get('refund_result') or '',
         'created_at': o.get('created_at'),
         'updated_at': o.get('updated_at'),
     }
@@ -4006,6 +4044,9 @@ def cancel_order(oid):
     items = json.loads(order['items'])
     payment_intent_id = order.get('payment_intent_id', '')
     amount_cents = int(round(float(order['total']) * 100))
+    role = g.user.get('role') or 'customer'
+    cancelled_by = 'customer' if role not in ('admin', 'staff') else role
+    cancelled_by_email = g.user.get('email') or order.get('customer_email')
 
     try:
         db.execute("BEGIN IMMEDIATE")
@@ -4016,9 +4057,21 @@ def cancel_order(oid):
         if fresh['payment_status'] in ('refunded', 'refund_pending'):
             db.rollback()
             return jsonify({'error': 'A refund is already completed or pending for this order.'}), 400
+        needs_refund = fresh['payment_status'] == 'paid' and amount_cents > 0
+        initial_pay_status = 'refund_pending' if needs_refund else fresh['payment_status']
+        initial_refund_result = 'manual_refund_required' if needs_refund else 'no_payment_to_refund'
         restocked_product_ids = _restore_order_stock(db, items)
-        db.execute("UPDATE orders SET status='cancelled', payment_status='refund_pending', updated_at=datetime('now') WHERE id=?",
-                   (order['id'],))
+        db.execute(
+            """UPDATE orders
+               SET status='cancelled',
+                   payment_status=?,
+                   cancelled_by=?,
+                   cancelled_at=datetime('now'),
+                   refund_result=?,
+                   updated_at=datetime('now')
+               WHERE id=?""",
+            (initial_pay_status, cancelled_by, initial_refund_result, order['id'])
+        )
         # Remove the mirrored bookkeeping sale for this cancelled order (non-fatal).
         try:
             if hasattr(app, 'acc_void_order_sale'):
@@ -4037,24 +4090,49 @@ def cancel_order(oid):
         except Exception as exc:
             app.logger.warning('back-in-stock notify after cancellation failed: %s', exc)
 
-    pay_status = 'refund_pending'
-    if payment_intent_id and _refund_payment_intent(payment_intent_id, amount_cents, 'Order cancellation refund', email=order['customer_email']):
+    pay_status = initial_pay_status
+    refund_result = initial_refund_result
+    if needs_refund and payment_intent_id and _refund_payment_intent(payment_intent_id, amount_cents, 'Order cancellation refund', email=order['customer_email']):
         pay_status = 'refunded'
-        db.execute("UPDATE orders SET payment_status='refunded', updated_at=datetime('now') WHERE id=?", (order['id'],))
+        refund_result = 'refunded_automatically'
+        db.execute(
+            "UPDATE orders SET payment_status='refunded', refund_result=?, updated_at=datetime('now') WHERE id=?",
+            (refund_result, order['id'])
+        )
+        db.commit()
+    elif needs_refund:
+        refund_result = 'manual_refund_required'
+        db.execute(
+            "UPDATE orders SET refund_result=?, updated_at=datetime('now') WHERE id=?",
+            (refund_result, order['id'])
+        )
         db.commit()
 
     log_audit_event(
         'order_cancelled',
         'order',
         order['id'],
-        f"Order cancelled: {order['order_number']}",
+        f"Order cancelled by {cancelled_by}: {order['order_number']}. Stock restored and refund result: {refund_result}.",
         before={'status': order['status'], 'payment_status': order['payment_status']},
-        after={'status': 'cancelled', 'payment_status': pay_status},
-        metadata={'order_id': order['id'], 'order_number': order['order_number'], 'cancelled_by_role': g.user.get('role')},
+        after={'status': 'cancelled', 'payment_status': pay_status, 'refund_result': refund_result},
+        metadata={
+            'order_id': order['id'],
+            'order_number': order['order_number'],
+            'cancelled_by': cancelled_by,
+            'cancelled_by_email': cancelled_by_email,
+            'refund_result': refund_result,
+            'stock_restored_product_ids': restocked_product_ids,
+        },
     )
     email_order_status(order['order_number'], order['customer_name'], order['customer_email'], 'cancelled')
+    if cancelled_by == 'customer':
+        try:
+            email_admin_order_cancelled(order, refund_result, len(restocked_product_ids))
+        except Exception as exc:
+            app.logger.warning('admin cancellation email failed: %s', exc)
     msg = 'Order cancelled. Refund will appear on your card within 5–7 business days.' if pay_status == 'refunded' \
-          else 'Order cancelled. Our team will process your refund within 2 business days.'
+          else 'Order cancelled. Our team will process your refund within 2 business days.' if refund_result == 'manual_refund_required' \
+          else 'Order cancelled.'
     return jsonify({'message': msg})
 
 
