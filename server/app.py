@@ -3542,6 +3542,38 @@ def _payment_error_message(error, suffix):
     return f'{base}. {suffix}' if base else suffix
 
 
+def _log_paid_order_unexpected_failure(stage, payment_intent_id, customer_email, exc):
+    try:
+        app.logger.exception('Paid checkout order save failed at %s', stage)
+    except Exception:
+        pass  # nosec B110
+    log_security_event(
+        'paid_order_unexpected_error',
+        'critical',
+        f'Unexpected error while saving paid order ({stage})',
+        email=customer_email,
+        metadata={
+            'stage': stage,
+            'payment_intent_id': payment_intent_id,
+            'error': str(exc)[:500],
+        },
+    )
+
+
+def _ensure_paid_order_schema(db):
+    try:
+        db.execute("ALTER TABLE orders ADD COLUMN payment_intent_id TEXT")
+        db.commit()
+    except sqlite3.OperationalError as exc:
+        if 'duplicate column name' not in str(exc).lower():
+            raise
+    db.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_payment_intent_id
+        ON orders(payment_intent_id)
+        WHERE payment_intent_id IS NOT NULL AND payment_intent_id != ''
+    """)
+
+
 @app.route('/api/orders', methods=['POST'])
 @limiter.limit("60 per minute; 300 per hour")
 def create_order():
@@ -3570,6 +3602,11 @@ def create_order():
         return jsonify({'error': 'Payment is required to place an order.'}), 400
     db = get_db()
     user_id = current_customer_id_from_request(db)
+    try:
+        _ensure_paid_order_schema(db)
+    except Exception as exc:
+        _log_paid_order_unexpected_failure('schema_check', payment_intent_id, customer_email, exc)
+        return jsonify({'error': 'Could not save your order. Please contact support with your payment confirmation.'}), 500
     log_security_event(
         'paid_order_save_started',
         'info',
@@ -3577,10 +3614,14 @@ def create_order():
         email=customer_email,
         metadata={'payment_intent_id': payment_intent_id},
     )
-    existing_payment_order = row_to_dict(db.execute(
-        "SELECT id,order_number,user_id,customer_email,total,discount FROM orders WHERE payment_intent_id=?",
-        (payment_intent_id,)
-    ).fetchone())
+    try:
+        existing_payment_order = row_to_dict(db.execute(
+            "SELECT id,order_number,user_id,customer_email,total,discount FROM orders WHERE payment_intent_id=?",
+            (payment_intent_id,)
+        ).fetchone())
+    except Exception as exc:
+        _log_paid_order_unexpected_failure('duplicate_payment_lookup', payment_intent_id, customer_email, exc)
+        return jsonify({'error': 'Could not save your order. Please contact support with your payment confirmation.'}), 500
     if existing_payment_order:
         if (
             existing_payment_order.get('customer_email') == customer_email
@@ -3626,6 +3667,9 @@ def create_order():
         if refunded:
             return jsonify({'error': _payment_error_message(exc, 'Your payment was refunded automatically.')}), 409
         return jsonify({'error': _payment_error_message(exc, 'Please refresh checkout and try again. If your card was charged, contact support.')}), 400
+    except Exception as exc:
+        _log_paid_order_unexpected_failure('total_calculation', payment_intent_id, customer_email, exc)
+        return jsonify({'error': 'Could not save your order. Please contact support with your payment confirmation.'}), 500
     stored_items = totals['stored_items']
     real_subtotal = totals['subtotal']
     discount = totals['discount']
@@ -3699,9 +3743,11 @@ def create_order():
             metadata={'payment_intent_id': payment_intent_id, 'error': str(exc)[:300]},
         )
         return jsonify({'error': 'Could not verify payment. Please contact support.'}), 400
+    except Exception as exc:
+        _log_paid_order_unexpected_failure('payment_verification', payment_intent_id, customer_email, exc)
+        return jsonify({'error': 'Could not verify payment. Please contact support.'}), 500
 
     try:
-        db.execute("BEGIN IMMEDIATE")
         existing_payment_order = row_to_dict(db.execute(
             "SELECT id,order_number,user_id,customer_email,total,discount FROM orders WHERE payment_intent_id=?",
             (payment_intent_id,)
@@ -3789,7 +3835,10 @@ def create_order():
 
         db.commit()
     except ValueError as exc:
-        db.rollback()
+        try:
+            db.rollback()
+        except Exception:
+            pass  # nosec B110
         log_security_event(
             'paid_order_stock_validation_failed',
             'critical',
@@ -3802,7 +3851,10 @@ def create_order():
             return jsonify({'error': _payment_error_message(exc, 'Your payment was refunded automatically.')}), 409
         return jsonify({'error': _payment_error_message(exc, 'Please contact support so we can refund this payment.')}), 409
     except sqlite3.Error as exc:
-        db.rollback()
+        try:
+            db.rollback()
+        except Exception:
+            pass  # nosec B110
         log_security_event(
             'order_commit_failed',
             'critical',
@@ -3810,6 +3862,13 @@ def create_order():
             email=customer_email,
             metadata={'payment_intent_id': payment_intent_id, 'error': str(exc)[:300]},
         )
+        return jsonify({'error': 'Could not save your order. Please contact support with your payment confirmation.'}), 500
+    except Exception as exc:
+        try:
+            db.rollback()
+        except Exception:
+            pass  # nosec B110
+        _log_paid_order_unexpected_failure('order_commit', payment_intent_id, customer_email, exc)
         return jsonify({'error': 'Could not save your order. Please contact support with your payment confirmation.'}), 500
 
     # This customer finished checking out — cancel any pending cart reminder.
@@ -3822,15 +3881,33 @@ def create_order():
     except Exception as _ac_exc:
         app.logger.warning('abandoned-cart convert-mark failed: %s', _ac_exc)
 
-    email_order_confirmation(
-        order_num, customer_name, customer_email,
-        stored_items, subtotal, discount,
-        shipping, total, shipping_address
-    )
-    email_admin_new_order(
-        order_num, customer_name, customer_email,
-        stored_items, total, shipping_address
-    )
+    try:
+        email_order_confirmation(
+            order_num, customer_name, customer_email,
+            stored_items, subtotal, discount,
+            shipping, total, shipping_address
+        )
+    except Exception as exc:
+        log_security_event(
+            'order_email_failed',
+            'warning',
+            'Order saved but customer confirmation email failed',
+            email=customer_email,
+            metadata={'order_id': oid, 'order_number': order_num, 'error': str(exc)[:300]},
+        )
+    try:
+        email_admin_new_order(
+            order_num, customer_name, customer_email,
+            stored_items, total, shipping_address
+        )
+    except Exception as exc:
+        log_security_event(
+            'order_email_failed',
+            'warning',
+            'Order saved but admin new-order email failed',
+            email=customer_email,
+            metadata={'order_id': oid, 'order_number': order_num, 'error': str(exc)[:300], 'recipient': 'admin'},
+        )
     log_audit_event(
         'order_created',
         'order',
