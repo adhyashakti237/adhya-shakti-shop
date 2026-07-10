@@ -509,7 +509,7 @@ async function openOrderModal(id) {
     const o = await api.get(`/orders/${id}`);
     if (Router.stale(_gen)) return;
     const addr = o.shipping_address || {};
-    openModal(`
+    const modal = openModal(`
       <div class="modal-header">
         <h3><i class="fas fa-receipt" style="color:var(--primary);margin-right:8px"></i>Order #${esc(o.order_number || '')}</h3>
         <button class="modal-close" data-csp-onclick="closeModal()" aria-label="Close">×</button>
@@ -608,10 +608,10 @@ async function openOrderModal(id) {
 
       </div>
       <div class="modal-footer" style="flex-wrap:wrap;gap:8px">
-        <button class="btn btn-ghost" data-csp-onclick="closeModal()">Close</button>
+        <button class="btn btn-ghost" type="button" data-csp-onclick="closeModal()">Close</button>
         ${['pending','processing'].includes(o.status) ? `
           <button class="btn btn-outline" style="border-color:var(--danger);color:var(--danger)"
-            data-csp-onclick="confirmCancelOrder('${o.id}','${o.order_number}')">
+            type="button" data-cancel-open="1">
             <i class="fas fa-times-circle"></i> Cancel Order
           </button>` : ''}
         ${['shipped','delivered'].includes(o.status) ? `
@@ -628,6 +628,12 @@ async function openOrderModal(id) {
           <i class="fas fa-file-download"></i> Download Invoice
         </button>
       </div>`);
+
+    modal.querySelector('[data-cancel-open="1"]')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      window.confirmCancelOrder(o.id, o.order_number);
+    });
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -696,7 +702,7 @@ window.openWriteReview = (items) => {
 };
 
 window.confirmCancelOrder = (id, orderNum) => {
-  openModal(`
+  const modal = openModal(`
     <div class="modal-header"><h3><i class="fas fa-exclamation-triangle" style="color:var(--danger);margin-right:8px"></i>Cancel Order?</h3><button class="modal-close" data-csp-onclick="closeModal()" aria-label="Close">×</button></div>
     <div class="modal-body">
       <p style="margin-bottom:12px">You are about to cancel order <strong>${esc(orderNum)}</strong>.</p>
@@ -707,11 +713,17 @@ window.confirmCancelOrder = (id, orderNum) => {
       <p style="font-size:.85rem;color:var(--text-light)">After cancellation, the order cannot be restarted. You can place a new order anytime.</p>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" data-csp-onclick="closeModal()">Keep Order</button>
-      <button class="btn btn-primary" style="background:var(--danger);border-color:var(--danger)" data-cancel-submit="1" data-csp-onclick="doCancelOrder('${id}')">
+      <button class="btn btn-ghost" type="button" data-csp-onclick="closeModal()">Keep Order</button>
+      <button class="btn btn-primary" type="button" style="background:var(--danger);border-color:var(--danger)" data-cancel-submit="1">
         <i class="fas fa-times-circle"></i> Yes, Cancel & Refund
       </button>
     </div>`);
+
+  modal.querySelector('[data-cancel-submit="1"]')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    window.doCancelOrder(id);
+  });
 };
 
 window.doCancelOrder = async (id) => {
