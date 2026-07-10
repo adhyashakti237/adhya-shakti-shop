@@ -929,6 +929,28 @@ tr:hover td { background: var(--bg); }
 .account-order-next.warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
 .account-order-next.success { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
 .account-order-next.danger { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.account-return-reason {
+  margin: 12px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  border-radius: 12px;
+}
+.account-return-reason div {
+  color: #9a3412;
+  font-size: .74rem;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.account-return-reason p {
+  margin: 0;
+  color: #4a3221;
+  font-size: .88rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
 .account-order-timeline {
   display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 6px;
   background: #fbfaf7; border: 1px solid #eee7dc; border-radius: 12px; padding: 10px;
@@ -1383,6 +1405,8 @@ tr:hover td { background: var(--bg); }
   .account-order-actions { width: 100%; }
   .account-order-actions .btn { flex: 1 1 0; }
   .account-order-next { font-size: .78rem; padding: 9px 10px; }
+  .account-return-reason { padding: 11px 12px; }
+  .account-return-reason p { font-size: .82rem; }
   .account-tracking-panel {
     grid-template-columns: auto minmax(0, 1fr);
     align-items: flex-start;

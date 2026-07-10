@@ -20,6 +20,7 @@ Router.register('/admin/orders', async () => {
   function orderAttentionFlags(o) {
     const flags = [];
     if (o.status === 'return_requested') flags.push({ label: 'Return requested', icon: 'fa-undo-alt', tone: 'danger' });
+    if (o.status === 'return_requested' && !String(o.return_reason || '').trim()) flags.push({ label: 'Missing reason', icon: 'fa-message', tone: 'warn' });
     if (o.status === 'pending' && ageDays(o.created_at) >= ATTENTION_PENDING_DAYS) flags.push({ label: `${ageDays(o.created_at)} days pending`, icon: 'fa-clock', tone: 'warn' });
     if (o.status === 'shipped' && !String(o.tracking_number || '').trim()) flags.push({ label: 'Missing tracking', icon: 'fa-truck', tone: 'warn' });
     if (o.status === 'pending' && o.payment_status === 'paid') flags.push({ label: 'Needs processing', icon: 'fa-box-open', tone: 'info' });
@@ -421,6 +422,11 @@ Router.register('/admin/orders', async () => {
           <div><span>Total</span><strong>${fmt(o.total)}</strong></div>
         </div>
         <div style="margin:12px 0 16px">${orderFlagsHtml(o)}</div>
+        ${o.return_reason ? `
+          <div class="admin-order-block" style="margin-bottom:16px;border-color:#fed7aa;background:#fff7ed">
+            <div class="admin-order-block-title" style="color:#9a3412"><i class="fas fa-message"></i> Customer return reason</div>
+            <div class="admin-order-block-body" style="white-space:pre-wrap;color:#4a3221">${esc(o.return_reason)}</div>
+          </div>` : ''}
         <div class="admin-order-action-panel">
           <div>
             <div class="admin-order-block-title" style="margin-bottom:6px"><i class="fas fa-list-check"></i> Recommended next step</div>

@@ -642,6 +642,7 @@ def email_admin_new_order(order_num, customer_name, customer_email, items_data, 
 
 
 def email_admin_return_request(order):
+    reason = clean_text(order.get('return_reason'), 1000) if isinstance(order, dict) else ''
     html = _email_html(f"""
 <h2>Return Request Submitted</h2>
 <div class="warning">
@@ -651,6 +652,8 @@ def email_admin_return_request(order):
 <strong>Customer:</strong> {h(order.get('customer_name'))}<br>
 <strong>Email:</strong> <a href="mailto:{h(order.get('customer_email'))}" style="color:#1D5C4A">{h(order.get('customer_email'))}</a><br>
 <strong>Total:</strong> {_money(order.get('total'))}</p>
+<h3>Customer Reason</h3>
+<p style="white-space:pre-wrap">{h(reason) or 'No reason provided.'}</p>
 <a href="https://adhyashaktishop.com/admin/orders?status=return_requested" class="cta">Review Return Requests</a>""", f'Return request for order {order.get("order_number")}.')
     send_email(ORDER_MAIL_USER, ORDER_MAIL_PASS, ORDER_MAIL_USER,
                f'Return Request - {order.get("order_number")} | Adhya Shakti Shop', html)
@@ -1190,6 +1193,7 @@ def init_db():
             status TEXT DEFAULT 'pending',
             tracking_number TEXT,
             notes TEXT,
+            return_reason TEXT,
             review_requested_at TEXT,
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now')),
@@ -1494,6 +1498,7 @@ def init_db():
     migrations = [
         "ALTER TABLE orders ADD COLUMN payment_intent_id TEXT",
         "ALTER TABLE orders ADD COLUMN review_requested_at TEXT",
+        "ALTER TABLE orders ADD COLUMN return_reason TEXT",
         "ALTER TABLE products ADD COLUMN allow_custom_print INTEGER DEFAULT 0",
         "ALTER TABLE contact_messages ADD COLUMN inquiry_type TEXT",
         "ALTER TABLE contact_messages ADD COLUMN order_number TEXT",
@@ -3471,6 +3476,7 @@ def public_order_payload(order):
         'payment_status': o.get('payment_status') or '',
         'status': o.get('status') or '',
         'tracking_number': o.get('tracking_number') or '',
+        'return_reason': o.get('return_reason') or '',
         'created_at': o.get('created_at'),
         'updated_at': o.get('updated_at'),
     }
@@ -3878,6 +3884,8 @@ def cancel_order(oid):
 @limiter.limit("6 per minute; 30 per hour")
 @token_required
 def request_return(oid):
+    data = request.json or {}
+    reason = clean_text(data.get('reason'), 1000)
     db = get_db()
     order = row_to_dict(db.execute("SELECT * FROM orders WHERE id=? OR order_number=?", (oid, oid)).fetchone())
     if not order:
@@ -3887,8 +3895,16 @@ def request_return(oid):
         return jsonify({'error': 'Order not found'}), 404
     if order['status'] not in ('shipped', 'delivered'):
         return jsonify({'error': 'Return can only be requested for shipped or delivered orders.'}), 400
-    db.execute("UPDATE orders SET status='return_requested', updated_at=datetime('now') WHERE id=?", (order['id'],))
+    if len(reason) < 10:
+        return jsonify({'error': 'Please add a short reason for the return request.'}), 400
+    if public_text_looks_spammy(reason):
+        return jsonify({'error': 'Please remove links or unsupported content from the return reason.'}), 400
+    db.execute(
+        "UPDATE orders SET status='return_requested', return_reason=?, updated_at=datetime('now') WHERE id=?",
+        (reason, order['id'])
+    )
     db.commit()
+    order['return_reason'] = reason
     log_audit_event(
         'return_requested',
         'order',
@@ -3896,7 +3912,7 @@ def request_return(oid):
         f"Return requested: {order['order_number']}",
         before={'status': order['status']},
         after={'status': 'return_requested'},
-        metadata={'order_id': order['id'], 'order_number': order['order_number']},
+        metadata={'order_id': order['id'], 'order_number': order['order_number'], 'reason_length': len(reason)},
     )
     email_order_status(order['order_number'], order['customer_name'], order['customer_email'], 'return_requested')
     email_admin_return_request(order)
@@ -5691,10 +5707,10 @@ ADMIN_EXPORTS = {
     'orders': {
         'filename': 'orders',
         'sql': """SELECT id,order_number,customer_name,customer_email,customer_phone,status,payment_status,
-                 subtotal,discount,shipping_charge,total,coupon_code,tracking_number,created_at,updated_at,notes
+                 subtotal,discount,shipping_charge,total,coupon_code,tracking_number,return_reason,created_at,updated_at,notes
                  FROM orders ORDER BY created_at DESC""",
         'columns': ['id', 'order_number', 'customer_name', 'customer_email', 'customer_phone', 'status', 'payment_status',
-                    'subtotal', 'discount', 'shipping_charge', 'total', 'coupon_code', 'tracking_number', 'created_at', 'updated_at', 'notes'],
+                    'subtotal', 'discount', 'shipping_charge', 'total', 'coupon_code', 'tracking_number', 'return_reason', 'created_at', 'updated_at', 'notes'],
     },
     'products': {
         'filename': 'products',

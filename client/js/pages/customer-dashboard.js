@@ -137,6 +137,16 @@ function accountOrderSupportStrip(o) {
     </div>`;
 }
 
+function accountReturnReasonHtml(o) {
+  const reason = String(o?.return_reason || '').trim();
+  if (!reason) return '';
+  return `
+    <div class="account-return-reason">
+      <div><i class="fas fa-message"></i> Return reason</div>
+      <p>${esc(reason)}</p>
+    </div>`;
+}
+
 function accountOrderTimeline(status, compact = false) {
   const current = ACCOUNT_ORDER_STEPS.indexOf(String(status || '').toLowerCase());
   const special = current === -1;
@@ -492,6 +502,7 @@ async function openOrderModal(id) {
         </div>
 
         ${accountOrderNextActionHtml(o)}
+        ${accountReturnReasonHtml(o)}
 
         <div class="alert alert-info" style="margin-bottom:16px">
           <strong>${esc(accountStatusMeta(o.status).label)}:</strong>
@@ -659,7 +670,7 @@ window.confirmCancelOrder = (id, orderNum) => {
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" data-csp-onclick="closeModal()">Keep Order</button>
-      <button class="btn btn-primary" style="background:var(--danger);border-color:var(--danger)" data-csp-onclick="doCancelOrder('${id}')">
+      <button class="btn btn-primary" style="background:var(--danger);border-color:var(--danger)" data-cancel-submit="1" data-csp-onclick="doCancelOrder('${id}')">
         <i class="fas fa-times-circle"></i> Yes, Cancel & Refund
       </button>
     </div>`);
@@ -667,13 +678,18 @@ window.confirmCancelOrder = (id, orderNum) => {
 
 window.doCancelOrder = async (id) => {
   const _gen = Router._gen;
+  const btn = document.querySelector('[data-cancel-submit="1"]');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cancelling...'; }
   try {
     const res = await api.post(`/orders/${id}/cancel`, {});
     if (Router.stale(_gen)) return;
     closeModal();
     toast(res.message, 'success');
     setTimeout(() => { if (!Router.stale(_gen)) Router.navigate('/dashboard/orders'); }, 1200);
-  } catch (e) { if (!Router.stale(_gen)) toast(e.message, 'error'); }
+  } catch (e) {
+    if (!Router.stale(_gen)) toast(e.message, 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-times-circle"></i> Yes, Cancel & Refund'; }
+  }
 };
 
 window.confirmRequestReturn = (id, orderNum) => {
@@ -681,7 +697,7 @@ window.confirmRequestReturn = (id, orderNum) => {
     <div class="modal-header"><h3><i class="fas fa-undo-alt" style="color:#c2410c;margin-right:8px"></i>Request Return</h3><button class="modal-close" data-csp-onclick="closeModal()" aria-label="Close">×</button></div>
     <div class="modal-body">
       <p style="margin-bottom:16px">You are requesting a return for order <strong>${esc(orderNum)}</strong>. Please review these conditions before submitting:</p>
-      <div style="display:flex;flex-direction:column;gap:10px;font-size:.88rem">
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:.88rem">
         <div style="display:flex;gap:10px;align-items:flex-start;padding:10px;background:#f9fafb;border-radius:8px">
           <i class="fas fa-box" style="color:var(--primary);margin-top:2px;flex-shrink:0"></i>
           <div><strong>Ship the package back within 7 business days</strong> of submitting this request. We'll email you our return address.</div>
@@ -699,10 +715,15 @@ window.confirmRequestReturn = (id, orderNum) => {
           <div><strong>Custom printed items</strong> are not eligible for returns unless defective or wrong.</div>
         </div>
       </div>
+      <div class="form-group" style="margin-top:16px">
+        <label class="form-label">Reason for return *</label>
+        <textarea class="form-control" id="return-reason" rows="4" maxlength="1000" placeholder="Tell us what happened, for example wrong size, damaged item, not as expected..." required></textarea>
+        <div class="form-hint">Please do not include card numbers, passwords, or private information.</div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" data-csp-onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" style="background:#c2410c;border-color:#c2410c" data-csp-onclick="doRequestReturn('${id}')">
+      <button class="btn btn-primary" style="background:#c2410c;border-color:#c2410c" data-return-submit="1" data-csp-onclick="doRequestReturn('${id}')">
         <i class="fas fa-undo-alt"></i> Submit Return Request
       </button>
     </div>`);
@@ -710,13 +731,25 @@ window.confirmRequestReturn = (id, orderNum) => {
 
 window.doRequestReturn = async (id) => {
   const _gen = Router._gen;
+  const reasonEl = document.getElementById('return-reason');
+  const reason = (reasonEl?.value || '').trim();
+  if (reason.length < 10) {
+    toast('Please add a short reason for the return request.', 'warning');
+    reasonEl?.focus();
+    return;
+  }
+  const btn = document.querySelector('[data-return-submit="1"]');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...'; }
   try {
-    const res = await api.post(`/orders/${id}/request-return`, {});
+    const res = await api.post(`/orders/${id}/request-return`, { reason });
     if (Router.stale(_gen)) return;
     closeModal();
     toast(res.message, 'success');
     setTimeout(() => { if (!Router.stale(_gen)) Router.navigate('/dashboard/orders'); }, 1200);
-  } catch (e) { if (!Router.stale(_gen)) toast(e.message, 'error'); }
+  } catch (e) {
+    if (!Router.stale(_gen)) toast(e.message, 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-undo-alt"></i> Submit Return Request'; }
+  }
 };
 
 async function printInvoice(idOrObj) {

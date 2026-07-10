@@ -760,6 +760,7 @@ Router.register('/track-order', () => {
             ${typeof accountOrderTimeline === 'function' ? accountOrderTimeline(order.status) : ''}
             <div class="alert alert-info" style="margin:0"><strong>${esc(order.status.replace(/_/g,' '))}:</strong> ${esc(statusText)} Need help? Contact contact@adhyashaktishop.com with your order number.</div>
             ${typeof accountOrderTrackingPanel === 'function' ? accountOrderTrackingPanel(order) : ''}
+            ${typeof accountReturnReasonHtml === 'function' ? accountReturnReasonHtml(order) : ''}
             <div class="grid-2" style="gap:12px;font-size:.9rem">
               <div><span style="color:var(--text-light)">Placed on</span><br><strong>${new Date(order.created_at).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</strong></div>
               <div><span style="color:var(--text-light)">Total</span><br><strong>${fmt(order.total)}</strong></div>
