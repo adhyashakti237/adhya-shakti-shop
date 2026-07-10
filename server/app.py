@@ -3537,7 +3537,7 @@ def _refund_succeeded_payment_intent(payment_intent_id, reason, email=None):
     if not payment_intent_id:
         return False
     try:
-        intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+        intent = _stripe_object_to_dict(stripe.PaymentIntent.retrieve(payment_intent_id))
         if intent.get('status') == 'succeeded':
             amount_cents = int(intent.get('amount') or 0)
             if amount_cents > 0:
@@ -3556,6 +3556,14 @@ def _refund_succeeded_payment_intent(payment_intent_id, reason, email=None):
 def _payment_error_message(error, suffix):
     base = str(error).strip().rstrip('.')
     return f'{base}. {suffix}' if base else suffix
+
+
+def _stripe_object_to_dict(obj):
+    if hasattr(obj, 'to_dict_recursive'):
+        return obj.to_dict_recursive()
+    if hasattr(obj, 'to_dict'):
+        return obj.to_dict()
+    return dict(obj)
 
 
 def _log_paid_order_unexpected_failure(stage, payment_intent_id, customer_email, exc):
@@ -3699,7 +3707,7 @@ def create_order():
 
     # ── Server-side price verification — prevents client-side price manipulation ──
     try:
-        intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+        intent = _stripe_object_to_dict(stripe.PaymentIntent.retrieve(payment_intent_id))
         if intent['status'] != 'succeeded':
             log_security_event(
                 'paid_order_payment_not_succeeded',
