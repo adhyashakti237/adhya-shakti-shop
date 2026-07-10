@@ -147,6 +147,35 @@ function accountReturnReasonHtml(o) {
     </div>`;
 }
 
+function bindCustomerCancelDelegates() {
+  if (window.__customerCancelDelegatesBound) return;
+  window.__customerCancelDelegatesBound = true;
+  document.addEventListener('click', (event) => {
+    const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
+    const openBtn = target?.closest?.('[data-cancel-open="1"]');
+    if (openBtn) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      const id = openBtn.dataset.orderId || '';
+      const orderNum = openBtn.dataset.orderNumber || '';
+      if (id) window.confirmCancelOrder(id, orderNum);
+      return;
+    }
+
+    const submitBtn = target?.closest?.('[data-cancel-submit="1"]');
+    if (submitBtn) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      const id = submitBtn.dataset.orderId || '';
+      if (id) window.doCancelOrder(id);
+    }
+  }, true);
+}
+
+bindCustomerCancelDelegates();
+
 function accountOrderTimeline(status, compact = false) {
   const current = ACCOUNT_ORDER_STEPS.indexOf(String(status || '').toLowerCase());
   const special = current === -1;
@@ -611,7 +640,7 @@ async function openOrderModal(id) {
         <button class="btn btn-ghost" type="button" data-csp-onclick="closeModal()">Close</button>
         ${['pending','processing'].includes(o.status) ? `
           <button class="btn btn-outline" style="border-color:var(--danger);color:var(--danger)"
-            type="button" data-cancel-open="1">
+            type="button" data-cancel-open="1" data-order-id="${esc(o.id)}" data-order-number="${esc(o.order_number || '')}">
             <i class="fas fa-times-circle"></i> Cancel Order
           </button>` : ''}
         ${['shipped','delivered'].includes(o.status) ? `
@@ -702,6 +731,7 @@ window.openWriteReview = (items) => {
 };
 
 window.confirmCancelOrder = (id, orderNum) => {
+  closeModal();
   const modal = openModal(`
     <div class="modal-header"><h3><i class="fas fa-exclamation-triangle" style="color:var(--danger);margin-right:8px"></i>Cancel Order?</h3><button class="modal-close" data-csp-onclick="closeModal()" aria-label="Close">×</button></div>
     <div class="modal-body">
@@ -714,7 +744,7 @@ window.confirmCancelOrder = (id, orderNum) => {
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" type="button" data-csp-onclick="closeModal()">Keep Order</button>
-      <button class="btn btn-primary" type="button" style="background:var(--danger);border-color:var(--danger)" data-cancel-submit="1">
+      <button class="btn btn-primary" type="button" style="background:var(--danger);border-color:var(--danger)" data-cancel-submit="1" data-order-id="${esc(id)}">
         <i class="fas fa-times-circle"></i> Yes, Cancel & Refund
       </button>
     </div>`);
