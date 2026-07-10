@@ -94,18 +94,24 @@ function ensureCanonical(href) {
 
 function setProductMeta(title, description, image) {
   const desc = String(description || '').replace(/\s+/g, ' ').trim().slice(0, 155);
-  const imageUrl = image ? absoluteSiteUrl(image) : '';
-  document.title = `${title} — Adhya Shakti Shop`;
+  const imageUrl = absoluteSiteUrl(image || '/images/logo-main.png');
+  const pageUrl = absoluteSiteUrl(location.pathname);
+  const fullTitle = `${title} — Adhya Shakti Shop`;
+  document.title = fullTitle;
   const setMeta = (sel, val) => { const el = document.querySelector(sel); if (el) el.setAttribute('content', val); };
+  setMeta('meta[name="robots"]', 'index,follow');
   setMeta('meta[name="description"]', desc);
-  setMeta('meta[property="og:title"]', `${title} — Adhya Shakti Shop`);
+  setMeta('meta[property="og:type"]', 'product');
+  setMeta('meta[property="og:title"]', fullTitle);
   setMeta('meta[property="og:description"]', desc);
   setMeta('meta[property="og:image"]', imageUrl);
-  setMeta('meta[property="og:url"]', window.location.href);
-  setMeta('meta[name="twitter:title"]', `${title} — Adhya Shakti Shop`);
+  setMeta('meta[property="og:url"]', pageUrl);
+  setMeta('meta[property="og:image:alt"]', title);
+  setMeta('meta[name="twitter:card"]', 'summary_large_image');
+  setMeta('meta[name="twitter:title"]', fullTitle);
   setMeta('meta[name="twitter:description"]', desc);
   setMeta('meta[name="twitter:image"]', imageUrl);
-  ensureCanonical(absoluteSiteUrl(location.pathname));
+  ensureCanonical(pageUrl);
 }
 
 Router.register('/product/:id', async (params) => {

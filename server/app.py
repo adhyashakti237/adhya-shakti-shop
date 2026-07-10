@@ -4662,17 +4662,17 @@ def sitemap():
     ]
     try:
         db = get_db()
-        for row in db.execute("SELECT id,created_at FROM products WHERE is_active=1 ORDER BY created_at DESC LIMIT 500").fetchall():
-            entries.append((f'{base}/product/{row["id"]}', (row['created_at'] or today)[:10], 'weekly', '0.8'))
+        for row in db.execute("SELECT id,created_at AS lastmod FROM products WHERE is_active=1 ORDER BY created_at DESC LIMIT 500").fetchall():
+            entries.append((f'{base}/product/{row["id"]}', (row['lastmod'] or today)[:10], 'weekly', '0.8'))
         for row in db.execute("""
-            SELECT id,created_at
+            SELECT id,created_at AS lastmod
             FROM categories
             WHERE IFNULL(is_active,1)=1
               AND IFNULL(kind,'catalog') IN ('catalog','clothing')
             ORDER BY created_at DESC
             LIMIT 200
         """).fetchall():
-            entries.append((f'{base}/products?category={row["id"]}', (row['created_at'] or today)[:10], 'weekly', '0.6'))
+            entries.append((f'{base}/products?category={row["id"]}', (row['lastmod'] or today)[:10], 'weekly', '0.6'))
     except Exception as exc:
         app.logger.warning('dynamic sitemap entries failed: %s', exc)
     urls = '\n'.join(
@@ -4693,7 +4693,14 @@ def robots():
         'Disallow: /admin\n'
         'Disallow: /dashboard\n'
         'Disallow: /checkout\n'
-        'Disallow: /cart\n\n'
+        'Disallow: /cart\n'
+        'Disallow: /wishlist\n'
+        'Disallow: /login\n'
+        'Disallow: /register\n'
+        'Disallow: /forgot-password\n'
+        'Disallow: /reset-password\n'
+        'Disallow: /order-success\n'
+        'Disallow: /track-order\n\n'
         'Sitemap: https://adhyashaktishop.com/sitemap.xml\n'
     )
     return Response(content, mimetype='text/plain')

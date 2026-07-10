@@ -72,6 +72,60 @@ const Router = {
     '/admin/accounts/expenses': 'Expenses — Accounts — Adhya Shakti Shop',
     '/admin/accounts/reports': 'Reports — Accounts — Adhya Shakti Shop',
   },
+  defaultMetaImage: '/images/logo-main.png',
+  noIndexPrefixes: ['/admin', '/dashboard'],
+  noIndexPaths: new Set([
+    '/cart', '/checkout', '/order-success', '/wishlist',
+    '/login', '/register', '/forgot-password', '/reset-password',
+    '/track-order',
+  ]),
+  ensureMeta(selector, attrName, attrValue) {
+    let el = document.querySelector(selector);
+    if (!el) {
+      el = document.createElement('meta');
+      el.setAttribute(attrName, attrValue);
+      document.head.appendChild(el);
+    }
+    return el;
+  },
+  setMetaContent(selector, attrName, attrValue, content) {
+    const el = Router.ensureMeta(selector, attrName, attrValue);
+    el.setAttribute('content', content || '');
+  },
+  absoluteUrl(path) {
+    try { return new URL(path || '/', location.origin).href; } catch { return location.origin + '/'; }
+  },
+  shouldNoIndex(path) {
+    return Router.noIndexPaths.has(path) || Router.noIndexPrefixes.some(prefix => path === prefix || path.startsWith(prefix + '/'));
+  },
+  applyRouteMeta(cleanPath) {
+    const title = Router.pageTitles[cleanPath] || 'Adhya Shakti Shop';
+    const desc = Router.pageDescriptions[cleanPath] || 'Handcrafted jewelry and custom-printed clothing from New Jersey, USA. Secure checkout and nationwide shipping.';
+    const canonicalUrl = Router.absoluteUrl(cleanPath || '/');
+    const imageUrl = Router.absoluteUrl(Router.defaultMetaImage);
+    document.title = title;
+
+    Router.setMetaContent('meta[name="description"]', 'name', 'description', desc);
+    Router.setMetaContent('meta[name="robots"]', 'name', 'robots', Router.shouldNoIndex(cleanPath) ? 'noindex,nofollow' : 'index,follow');
+    Router.setMetaContent('meta[property="og:type"]', 'property', 'og:type', 'website');
+    Router.setMetaContent('meta[property="og:url"]', 'property', 'og:url', canonicalUrl);
+    Router.setMetaContent('meta[property="og:title"]', 'property', 'og:title', title);
+    Router.setMetaContent('meta[property="og:description"]', 'property', 'og:description', desc);
+    Router.setMetaContent('meta[property="og:image"]', 'property', 'og:image', imageUrl);
+    Router.setMetaContent('meta[property="og:image:alt"]', 'property', 'og:image:alt', 'Adhya Shakti Shop');
+    Router.setMetaContent('meta[name="twitter:card"]', 'name', 'twitter:card', 'summary_large_image');
+    Router.setMetaContent('meta[name="twitter:title"]', 'name', 'twitter:title', title);
+    Router.setMetaContent('meta[name="twitter:description"]', 'name', 'twitter:description', desc);
+    Router.setMetaContent('meta[name="twitter:image"]', 'name', 'twitter:image', imageUrl);
+
+    let canonical = document.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.rel = 'canonical';
+      document.head.appendChild(canonical);
+    }
+    canonical.href = canonicalUrl;
+  },
   // All window.* names that page handlers attach — cleaned before each navigation
   _pageGlobals: [
     'applyFilters', 'changePage',
@@ -145,18 +199,9 @@ const Router = {
           </div>
         </div>`;
     });
-    document.title = Router.pageTitles[cleanPath] || 'Adhya Shakti Shop';
-    const metaDesc = document.querySelector('meta[name="description"]');
-    if (metaDesc && Router.pageDescriptions[cleanPath]) metaDesc.setAttribute('content', Router.pageDescriptions[cleanPath]);
-    let canonical = document.querySelector('link[rel="canonical"]');
-    if (!canonical) {
-      canonical = document.createElement('link');
-      canonical.rel = 'canonical';
-      document.head.appendChild(canonical);
-    }
-    canonical.href = location.origin + cleanPath;
-    // Remove any JSON-LD injected by the previous page
-    document.querySelector('script[type="application/ld+json"]')?.remove();
+    Router.applyRouteMeta(cleanPath);
+    // Remove JSON-LD injected by the previous page before the next page adds its own.
+    document.querySelectorAll('script[type="application/ld+json"]').forEach(el => el.remove());
     renderNavbar();
     handler(getParams(path));
     renderFooter();

@@ -167,6 +167,37 @@ Router.register('/', async () => {
     </div>
   </div>`;
 
+  const siteSchema = document.createElement('script');
+  siteSchema.type = 'application/ld+json';
+  siteSchema.textContent = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'Organization',
+        name: 'Adhya Shakti Shop',
+        url: location.origin + '/',
+        logo: location.origin + '/images/logo-main.png',
+        email: 'contact@adhyashaktishop.com',
+        address: { '@type': 'PostalAddress', addressRegion: 'NJ', addressCountry: 'US' },
+        sameAs: [
+          'https://www.instagram.com/adhyashaktijewelry',
+          'https://www.instagram.com/adhyashaktiprinting',
+        ],
+      },
+      {
+        '@type': 'WebSite',
+        name: 'Adhya Shakti Shop',
+        url: location.origin + '/',
+        potentialAction: {
+          '@type': 'SearchAction',
+          target: `${location.origin}/products?search={search_term_string}`,
+          'query-input': 'required name=search_term_string',
+        },
+      },
+    ],
+  });
+  document.head.appendChild(siteSchema);
+
   // Fetch all data in parallel
   const [slidersRes, statsRes, catsRes, productsRes, reviewsRes, clothingCsRes, clothingTreeRes] = await Promise.allSettled([
     api.get('/sliders'),

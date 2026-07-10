@@ -89,11 +89,17 @@ Router.register('/products', async (params) => {
     const canonical = absoluteUrl(canonicalPath || '/products');
     document.title = fullTitle;
     setMeta('meta[name="description"]', desc);
+    setMeta('meta[name="robots"]', 'index,follow');
+    setMeta('meta[property="og:type"]', 'website');
     setMeta('meta[property="og:title"]', fullTitle);
     setMeta('meta[property="og:description"]', desc);
     setMeta('meta[property="og:url"]', canonical);
+    setMeta('meta[property="og:image"]', absoluteUrl('/images/logo-main.png'));
+    setMeta('meta[property="og:image:alt"]', 'Adhya Shakti Shop');
+    setMeta('meta[name="twitter:card"]', 'summary_large_image');
     setMeta('meta[name="twitter:title"]', fullTitle);
     setMeta('meta[name="twitter:description"]', desc);
+    setMeta('meta[name="twitter:image"]', absoluteUrl('/images/logo-main.png'));
     ensureCanonical(canonical);
   }
 
