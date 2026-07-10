@@ -372,6 +372,27 @@ def send_email(from_addr, from_pass, to_addr, subject, html):
                      daemon=True).start()
 
 
+def send_order_email(to_addr, subject, html):
+    if ORDER_MAIL_PASS:
+        send_email(ORDER_MAIL_USER, ORDER_MAIL_PASS, to_addr, subject, html)
+        return
+    if CONTACT_MAIL_PASS:
+        log_security_event(
+            'order_email_fallback',
+            'warning',
+            'ORDER_MAIL_PASS is missing; sent order email through contact mailbox',
+            metadata={'from': CONTACT_MAIL_USER, 'to': to_addr, 'subject': subject[:160]},
+        )
+        send_email(CONTACT_MAIL_USER, CONTACT_MAIL_PASS, to_addr, subject, html)
+        return
+    log_security_event(
+        'order_email_config_missing',
+        'critical',
+        'Order email was not sent because ORDER_MAIL_PASS and CONTACT_MAIL_PASS are missing',
+        metadata={'to': to_addr, 'subject': subject[:160]},
+    )
+
+
 WELCOME_COUPON_CODE = 'WELCOME10'
 
 
@@ -644,8 +665,7 @@ def email_admin_new_order(order_num, customer_name, customer_email, items_data, 
 <h3>Shipping Address</h3>
 <p style="line-height:1.7">{_shipping_address_html(shipping_address)}</p>
 <a href="https://adhyashaktishop.com/admin/orders" class="cta">View in Admin</a>""", f'New paid order {order_num} for {_money(total)}.')
-    send_email(ORDER_MAIL_USER, ORDER_MAIL_PASS, ORDER_MAIL_USER,
-               f'New Order - {order_num} | Adhya Shakti Shop', html)
+    send_order_email(ORDER_MAIL_USER, f'New Order - {order_num} | Adhya Shakti Shop', html)
 
 
 def email_admin_return_request(order):
@@ -662,8 +682,7 @@ def email_admin_return_request(order):
 <h3>Customer Reason</h3>
 <p style="white-space:pre-wrap">{h(reason) or 'No reason provided.'}</p>
 <a href="https://adhyashaktishop.com/admin/orders?status=return_requested" class="cta">Review Return Requests</a>""", f'Return request for order {order.get("order_number")}.')
-    send_email(ORDER_MAIL_USER, ORDER_MAIL_PASS, ORDER_MAIL_USER,
-               f'Return Request - {order.get("order_number")} | Adhya Shakti Shop', html)
+    send_order_email(ORDER_MAIL_USER, f'Return Request - {order.get("order_number")} | Adhya Shakti Shop', html)
 
 
 def email_bulk_order_notification(name, business, cust_email, phone, product_type, quantity, needed_by, message):
@@ -753,8 +772,7 @@ def email_order_confirmation(order_num, customer_name, customer_email, items_dat
 </div>
 {_support_email_block()}
 <p class="muted">If anything looks incorrect, contact us as soon as possible so we can help before the order ships.</p>""", f'Order {order_num} is confirmed. Total charged: {_money(total)}.')
-    send_email(ORDER_MAIL_USER, ORDER_MAIL_PASS, customer_email,
-               f'Order Confirmed - {order_num} | Adhya Shakti Shop', html)
+    send_order_email(customer_email, f'Order Confirmed - {order_num} | Adhya Shakti Shop', html)
 
 
 _STATUS_COPY = {
@@ -792,8 +810,7 @@ def email_order_status(order_num, customer_name, customer_email, status, trackin
   <a href="https://adhyashaktishop.com/track-order" class="cta secondary" style="margin-left:8px">Track Order</a>
 </div>
 {_support_email_block()}""", f'Order {order_num} status update: {subject_line}.')
-    send_email(ORDER_MAIL_USER, ORDER_MAIL_PASS, customer_email,
-               f'{subject_line} - {order_num} | Adhya Shakti Shop', html)
+    send_order_email(customer_email, f'{subject_line} - {order_num} | Adhya Shakti Shop', html)
 
 
 def _review_request_item_rows(items_data):
@@ -841,8 +858,7 @@ def email_review_request(order_num, customer_name, customer_email, items_data):
 </div>
 <p class="muted">If something is wrong with the order, please reply to this email instead of leaving a review first. We want a chance to make it right.</p>
 {_support_email_block()}""", f'Order {order_num} was delivered. Share your review when you have a moment.')
-    send_email(ORDER_MAIL_USER, ORDER_MAIL_PASS, customer_email,
-               f'How was your order? - {order_num} | Adhya Shakti Shop', html)
+    send_order_email(customer_email, f'How was your order? - {order_num} | Adhya Shakti Shop', html)
 
 
 def validate_password(password):
