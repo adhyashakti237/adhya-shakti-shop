@@ -112,8 +112,16 @@ ul { list-style: none; }
   border: 2px solid var(--border); border-radius: 24px; outline: none; font-size: 1rem;
 }
 .mobile-search input:focus { border-color: var(--primary); }
-.mobile-search .mobile-search-icon {
-  position: absolute; right: 20px; top: 20px; color: var(--text-light); pointer-events: none;
+.mobile-search .mobile-search-btn {
+  position: absolute; right: 8px; top: 7px;
+  width: 40px; height: 40px; border-radius: 50%;
+  border: none; background: transparent; color: var(--text-light);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background .15s, color .15s;
+}
+.mobile-search .mobile-search-btn:hover,
+.mobile-search .mobile-search-btn:focus-visible {
+  background: rgba(29,92,74,.08); color: var(--primary);
 }
 .mobile-search .nav-search-results { top: calc(100% - 6px); }
 @media (max-width: 900px) { .mobile-search { display: block; } }

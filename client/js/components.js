@@ -86,7 +86,7 @@ function renderNavbar() {
       <nav class="nav-links" id="nav-links">
         <div class="mobile-search">
           <input type="text" id="m-search-input" placeholder="Search products..." aria-label="Search products" autocomplete="off" />
-          <i class="fas fa-search mobile-search-icon"></i>
+          <button class="mobile-search-btn" data-csp-onclick="doNavSearch('m-search-input')" aria-label="Search products"><i class="fas fa-search"></i></button>
           <div class="nav-search-results" id="m-search-results" role="listbox" hidden></div>
         </div>
         <a href="/" data-link>Home</a>
@@ -257,9 +257,17 @@ function renderNavbar() {
   });
 }
 
-function doNavSearch() {
-  const val = document.getElementById('nav-search-input')?.value.trim();
-  if (val) Router.navigate(`/products?search=${encodeURIComponent(val)}`);
+function doNavSearch(inputId = 'nav-search-input') {
+  const input = document.getElementById(inputId) || document.getElementById('nav-search-input') || document.getElementById('m-search-input');
+  const val = input?.value.trim();
+  closeSearchResults(document.getElementById('nav-search-results'));
+  closeSearchResults(document.getElementById('m-search-results'));
+  if (val) {
+    document.getElementById('nav-links')?.classList.remove('open');
+    document.getElementById('hamburger-btn')?.classList.remove('open');
+    document.body.classList.remove('mobile-nav-open');
+    Router.navigate(`/products?search=${encodeURIComponent(val)}`);
+  }
 }
 
 function closeSearchResults(box) {
@@ -297,6 +305,12 @@ function quickAddToCart(btn) {
   try {
     const p = JSON.parse(decodeURIComponent(btn.getAttribute('data-qa-enc') || ''));
     if (!p || !p.id) return;
+    const stockKnown = p.stock !== undefined && p.stock !== null && p.stock !== '';
+    if (p.has_variants || p.allow_custom_print || !stockKnown || Number(p.stock || 0) <= 0) {
+      toast('Please open the product page to choose available options.', 'info');
+      Router.navigate(`/product/${encodeURIComponent(p.id)}`);
+      return;
+    }
     Cart.add(p, 1);
     const icon = btn.querySelector('i');
     btn.classList.add('added');
@@ -310,7 +324,7 @@ function quickAddToCart(btn) {
 function wireLiveSearch(input, box) {
   if (!input || !box || input.dataset.liveWired) return;
   input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { closeSearchResults(box); const v = input.value.trim(); if (v) Router.navigate(`/products?search=${encodeURIComponent(v)}`); }
+    if (e.key === 'Enter') { closeSearchResults(box); const v = input.value.trim(); if (v) doNavSearch(input.id); }
     else if (e.key === 'Escape') closeSearchResults(box);
   });
   let t = null;
@@ -428,8 +442,14 @@ function productCard(p) {
   const discount = p.compare_price > p.price ? Math.round((1 - p.price / p.compare_price) * 100) : 0;
   const wData = Wishlist.payloadAttr({ id: p.id, name: p.name, price: p.price, compare_price: p.compare_price || 0, image: img });
   const isNew = p.created_at && (Date.now() - new Date(p.created_at.replace(' ', 'T') + 'Z').getTime()) < 30 * 86400 * 1000;
-  const outOfStock = p.stock === 0;
-  const lowStock = !outOfStock && !p.has_variants && p.stock > 0 && p.stock <= 5;
+  const stockKnown = p.stock !== undefined && p.stock !== null && p.stock !== '';
+  const stock = Number(p.stock || 0);
+  const hasVariants = !!p.has_variants;
+  const customPrint = !!p.allow_custom_print;
+  const outOfStock = stockKnown && stock <= 0;
+  const lowStock = stockKnown && !outOfStock && !hasVariants && stock > 0 && stock <= 5;
+  const canQuickAdd = stockKnown && stock > 0 && !hasVariants && !customPrint;
+  const quickPayload = { id: p.id, name: p.name, price: p.price, images: [img], stock, has_variants: hasVariants, allow_custom_print: customPrint };
   return `
     <a class="product-card" href="/product/${p.id}" data-link>
       <div class="product-img">
@@ -441,8 +461,8 @@ function productCard(p) {
           aria-label="${Wishlist.has(p.id) ? 'Remove from wishlist' : 'Add to wishlist'}">
           <i class="fas fa-heart"></i>
         </button>
-        ${!p.has_variants && !outOfStock ? `<button class="product-quickadd-overlay"
-          data-qa-enc="${encodeURIComponent(JSON.stringify({ id: p.id, name: p.name, price: p.price, images: [img] }))}"
+        ${canQuickAdd ? `<button class="product-quickadd-overlay"
+          data-qa-enc="${encodeURIComponent(JSON.stringify(quickPayload))}"
           data-csp-onclick="event.preventDefault();event.stopPropagation();quickAddToCart(this)"
           aria-label="Add ${esc(p.name)} to cart" title="Add to cart">
           <i class="fas fa-cart-plus"></i>
@@ -463,7 +483,9 @@ function productCard(p) {
           ${p.compare_price > p.price ? `<span class="price-old">${fmt(p.compare_price)}</span>` : ''}
           ${discount ? `<span class="price-discount">${discount}% off</span>` : ''}
         </div>
-        ${p.has_variants ? `<div class="product-option-note"><i class="fas fa-palette"></i> Color/size options</div>` : ''}
+        ${hasVariants ? `<div class="product-option-note"><i class="fas fa-palette"></i> Color/size options</div>`
+          : customPrint ? `<div class="product-option-note"><i class="fas fa-print"></i> Custom print options</div>`
+          : !stockKnown ? `<div class="product-option-note"><i class="fas fa-circle-info"></i> Open for options</div>` : ''}
       </div>
     </a>`;
 }
@@ -478,6 +500,8 @@ function getRecentlyViewedProducts(limit = 4, excludeIds = []) {
         ...p,
         images: p.images || (p.image ? [p.image] : []),
         stock: p.stock,
+        has_variants: !!p.has_variants,
+        allow_custom_print: !!p.allow_custom_print,
       }))
       .slice(0, limit);
   } catch {

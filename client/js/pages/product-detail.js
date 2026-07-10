@@ -59,7 +59,21 @@ function saveRecentlyViewed(p, img) {
   try {
     let list = JSON.parse(localStorage.getItem(key) || '[]');
     list = list.filter(i => String(i.id) !== String(p.id));
-    list.unshift({ id: p.id, name: p.name, price: p.price, compare_price: p.compare_price || 0, image: img || '' });
+    const variants = Array.isArray(p.variants) ? p.variants : [];
+    const hasVariants = variants.some(v => v && v.color && v.size);
+    list.unshift({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      compare_price: p.compare_price || 0,
+      image: img || '',
+      images: img ? [img] : [],
+      stock: Number(p.stock || 0),
+      has_variants: hasVariants,
+      allow_custom_print: !!p.allow_custom_print,
+      category_id: p.category_id || '',
+      category_name: p.category_name || '',
+    });
     localStorage.setItem(key, JSON.stringify(list.slice(0, 10)));
   } catch {}
 }
