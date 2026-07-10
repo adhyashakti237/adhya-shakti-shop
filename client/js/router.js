@@ -303,7 +303,28 @@ function toast(msg, type = 'info', duration = 3000) {
 }
 
 function fmt(n) { return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-function fmtDate(d) { return d ? new Date(d).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'; }
+function parseServerDate(value) {
+  if (!value) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return new Date(raw + 'T00:00:00');
+  if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw)) return new Date(raw.replace(' ', 'T'));
+  return new Date(raw.replace(' ', 'T') + 'Z');
+}
+function viewerTimeZoneLabel() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'your device timezone'; }
+  catch { return 'your device timezone'; }
+}
+function fmtDate(d) {
+  const parsed = parseServerDate(d);
+  return parsed && !isNaN(parsed) ? parsed.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : '-';
+}
+function fmtDateTime(d) {
+  const parsed = parseServerDate(d);
+  return parsed && !isNaN(parsed)
+    ? parsed.toLocaleString('en-US', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })
+    : '-';
+}
 
 // True until the first real Clothing product goes live — gates Clothing & Custom Printing
 // (custom printing is only offered on clothing items, so they share one readiness signal).

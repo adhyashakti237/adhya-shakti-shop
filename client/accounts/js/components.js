@@ -14,9 +14,21 @@ function esc(s){
 }
 function fmtDate(s){
   if (!s) return '';
-  const d = new Date(s.length <= 10 ? s + 'T00:00:00' : s);
+  const raw = String(s).trim();
+  const d = new Date(raw.length <= 10 ? raw + 'T00:00:00' : raw.replace(' ', 'T') + (/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw) ? '' : 'Z'));
   if (isNaN(d)) return s;
   return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+function fmtDateTime(s){
+  if (!s) return '';
+  const raw = String(s).trim();
+  const d = new Date(raw.length <= 10 ? raw + 'T00:00:00' : raw.replace(' ', 'T') + (/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw) ? '' : 'Z'));
+  if (isNaN(d)) return s;
+  return d.toLocaleString('en-US', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+}
+function viewerTimeZoneLabel(){
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'your device timezone'; }
+  catch { return 'your device timezone'; }
 }
 function todayStr(){ return new Date().toISOString().slice(0, 10); }
 function monthLabel(m){

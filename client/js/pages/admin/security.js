@@ -59,9 +59,9 @@ Router.register('/admin/security', async (params = {}) => {
     routine: 'Routine',
   }[bucket] || 'Routine');
 
-  const fmtEventDate = (value) => value
-    ? new Date(value.replace(' ', 'T')).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-    : '-';
+  const fmtEventDate = (value) => typeof fmtDateTime === 'function'
+    ? fmtDateTime(value)
+    : (value ? new Date(value.replace(' ', 'T') + 'Z').toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }) : '-');
 
   const renderEvent = (event) => {
     const metadata = event.metadata || {};
@@ -815,7 +815,7 @@ Router.register('/admin/security', async (params = {}) => {
 
     document.querySelector('.admin-content').innerHTML = `
       <div class="admin-page-title">Security Center</div>
-      <div class="text-muted" style="margin-top:-10px;margin-bottom:18px">A cleaner view of security, backups, health, reports, and review work.</div>
+      <div class="text-muted" style="margin-top:-10px;margin-bottom:18px">A cleaner view of security, backups, health, reports, and review work. Times are shown in your device timezone (${esc(viewerTimeZoneLabel())}).</div>
       ${loadErrors.length ? `<div class="alert alert-error" style="margin-bottom:18px"><strong>Some security panels could not load.</strong><br>${loadErrors.map(esc).join('<br>')}</div>` : ''}
 
       <div class="stats-grid security-center-summary" style="margin-bottom:18px">

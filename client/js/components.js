@@ -80,6 +80,10 @@ function renderNavbar() {
         <button class="search-btn" data-csp-onclick="doNavSearch()" aria-label="Search"><i class="fas fa-search"></i></button>
         <div class="nav-search-results" id="nav-search-results" role="listbox" hidden></div>
       </div>
+      <a href="/cart" data-link class="mobile-header-cart ${Cart.count() ? 'visible' : ''}" aria-label="Open cart" aria-hidden="${Cart.count() ? 'false' : 'true'}" tabindex="${Cart.count() ? '0' : '-1'}">
+        <i class="fas fa-shopping-cart"></i>
+        <span class="mobile-cart-count" style="display:${Cart.count() ? 'flex' : 'none'}">${Cart.count()}</span>
+      </a>
       <button class="hamburger" id="hamburger-btn" aria-label="Toggle menu" aria-controls="nav-links" aria-expanded="false">
         <span></span><span></span><span></span>
       </button>
@@ -304,6 +308,82 @@ async function fillSearchResults(box, q) {
   box.hidden = false;
 }
 
+let quickAddResetTimer = null;
+
+function showCartAddFeedback(product, qty) {
+  let box = document.getElementById('cart-add-feedback');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'cart-add-feedback';
+    box.className = 'cart-add-feedback';
+    document.body.appendChild(box);
+  }
+  box.innerHTML = `
+    <div class="cart-add-feedback-icon"><i class="fas fa-check"></i></div>
+    <div class="cart-add-feedback-copy">
+      <strong>Added to cart</strong>
+      <span>${esc(product?.name || 'Item')} · Qty ${Number(qty || 1)}</span>
+    </div>
+    <a href="/cart" data-link class="cart-add-feedback-link">View cart</a>`;
+  box.classList.add('visible');
+  clearTimeout(box._hideTimer);
+  box._hideTimer = setTimeout(() => box.classList.remove('visible'), 4500);
+}
+
+function quickAddQtyForKey(key) {
+  return Cart.get().find(i => i.key === key)?.qty || 0;
+}
+
+function renderQuickStepper(btn, product, key) {
+  const qty = quickAddQtyForKey(key);
+  btn.classList.add('stepper');
+  btn.removeAttribute('data-csp-onclick');
+  btn.dataset.cartKey = key;
+  btn.dataset.qaProduct = encodeURIComponent(JSON.stringify(product));
+  btn.innerHTML = `
+    <button type="button" class="quick-step-btn" aria-label="Decrease quantity">−</button>
+    <span class="quick-step-count">${qty}</span>
+    <button type="button" class="quick-step-btn" aria-label="Increase quantity">+</button>`;
+  const [minus, plus] = btn.querySelectorAll('.quick-step-btn');
+  minus.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); quickAdjustCart(btn, -1); });
+  plus.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); quickAdjustCart(btn, 1); });
+}
+
+function resetQuickAddButton(btn) {
+  if (!btn || !btn.classList.contains('stepper')) return;
+  btn.classList.remove('stepper', 'added');
+  btn.removeAttribute('data-cart-key');
+  btn.removeAttribute('data-qa-product');
+  btn.setAttribute('data-csp-onclick', 'event.preventDefault();event.stopPropagation();quickAddToCart(this)');
+  btn.innerHTML = '<i class="fas fa-cart-plus"></i>';
+}
+
+function scheduleQuickAddReset(btn) {
+  clearTimeout(quickAddResetTimer);
+  quickAddResetTimer = setTimeout(() => resetQuickAddButton(btn), 5000);
+}
+
+function quickAdjustCart(btn, delta) {
+  try {
+    const key = btn.dataset.cartKey;
+    const product = JSON.parse(decodeURIComponent(btn.dataset.qaProduct || ''));
+    const current = quickAddQtyForKey(key);
+    const next = Math.max(0, Math.min(Number(product.stock || 99), current + delta));
+    Cart.updateQty(key, next);
+    if (next <= 0) {
+      resetQuickAddButton(btn);
+      showCartAddFeedback(product, 0);
+      return;
+    }
+    const count = btn.querySelector('.quick-step-count');
+    if (count) count.textContent = next;
+    showCartAddFeedback(product, next);
+    scheduleQuickAddReset(btn);
+  } catch {
+    toast('Could not update cart quantity.', 'error');
+  }
+}
+
 function quickAddToCart(btn) {
   try {
     const p = JSON.parse(decodeURIComponent(btn.getAttribute('data-qa-enc') || ''));
@@ -314,11 +394,11 @@ function quickAddToCart(btn) {
       Router.navigate(`/product/${encodeURIComponent(p.id)}`);
       return;
     }
-    Cart.add(p, 1);
-    const icon = btn.querySelector('i');
+    const key = Cart.add(p, 1, null, null, { silent: true });
     btn.classList.add('added');
-    if (icon) icon.className = 'fas fa-check';
-    setTimeout(() => { btn.classList.remove('added'); if (icon) icon.className = 'fas fa-cart-plus'; }, 1400);
+    renderQuickStepper(btn, p, key);
+    showCartAddFeedback(p, quickAddQtyForKey(key));
+    scheduleQuickAddReset(btn);
   } catch (e) {
     toast('Could not add to cart. Please open the product page.', 'error');
   }
@@ -464,12 +544,12 @@ function productCard(p) {
           aria-label="${Wishlist.has(p.id) ? 'Remove from wishlist' : 'Add to wishlist'}">
           <i class="fas fa-heart"></i>
         </button>
-        ${canQuickAdd ? `<button class="product-quickadd-overlay"
+        ${canQuickAdd ? `<div class="product-quickadd-overlay" role="button" tabindex="0"
           data-qa-enc="${encodeURIComponent(JSON.stringify(quickPayload))}"
           data-csp-onclick="event.preventDefault();event.stopPropagation();quickAddToCart(this)"
           aria-label="Add ${esc(p.name)} to cart" title="Add to cart">
           <i class="fas fa-cart-plus"></i>
-        </button>` : ''}
+        </div>` : ''}
         ${outOfStock ? `<span class="product-badge-tag" style="background:#6b7280;color:#fff">Out of Stock</span>`
           : p.is_bestseller ? `<span class="product-badge-tag bestseller-badge"><i class="fas fa-fire"></i> Bestseller</span>`
           : isNew ? `<span class="product-badge-tag new-badge">✦ New</span>` : ''}

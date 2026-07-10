@@ -29,7 +29,6 @@ Router.register('/products', async (params) => {
           </div>
         </div>
         <div id="cat-filter-bar" class="cat-pill-bar"></div>
-        <div id="price-chip-bar" class="price-chips"></div>
         <div class="filter-bar">
           <select id="sort-filter" data-csp-onchange="applyFilters()">
             <option value="newest">Newest First</option>
@@ -48,26 +47,14 @@ Router.register('/products', async (params) => {
   let currentPage = parseInt(params.page) || 1;
   let currentCat = params.category || '';
   let currentSearch = params.search || '';
-  let currentPrice = { min: null, max: null };
   let allCats = [];
   let categoryTree = { categories: [] };
-
-  const PRICE_RANGES = [
-    { label: 'Under $30',  min: null, max: 30 },
-    { label: '$30 – $75',  min: 30,   max: 75 },
-    { label: '$75 – $150', min: 75,   max: 150 },
-    { label: '$150+',      min: 150,  max: null },
-  ];
 
   const cleanText = value => String(value || '').replace(/\s+/g, ' ').trim();
   const absoluteUrl = path => {
     try { return new URL(path || '/', location.origin).href; } catch { return location.origin + '/'; }
   };
   const selectedCategory = () => allCats.find(c => c.id === currentCat) || null;
-  const priceLabel = () => {
-    const match = PRICE_RANGES.find(r => currentPrice.min === r.min && currentPrice.max === r.max);
-    return match ? match.label : '';
-  };
   function setMeta(sel, val) {
     const el = document.querySelector(sel);
     if (el) el.setAttribute('content', val);
@@ -120,7 +107,6 @@ Router.register('/products', async (params) => {
     const active = [];
     if (cat) active.push(`<span><i class="fas ${categoryIcon(cat.name)}"></i>${esc(cat.path_label || cat.name)}</span>`);
     if (currentSearch) active.push(`<span><i class="fas fa-search"></i>${esc(currentSearch)}</span>`);
-    if (priceLabel()) active.push(`<span><i class="fas fa-tag"></i>${esc(priceLabel())}</span>`);
     const totalText = total === null ? 'Products update as you shop.' : `${total} product${total === 1 ? '' : 's'} available.`;
     const desc = cat ? categoryDescription(cat, total) : 'Browse jewelry, clothing, custom items, and gifts with secure checkout and support from a small New Jersey shop.';
     panel.style.display = 'none';
@@ -142,11 +128,9 @@ Router.register('/products', async (params) => {
     document.getElementById('clear-product-filters')?.addEventListener('click', () => {
       currentCat = '';
       currentSearch = '';
-      currentPrice = { min: null, max: null };
       currentPage = 1;
       const search = document.getElementById('search-box');
       if (search) search.value = '';
-      buildPriceChips();
       buildCatFilter(allCats, '');
       loadProducts();
     });
@@ -172,26 +156,6 @@ Router.register('/products', async (params) => {
     script.textContent = JSON.stringify(itemList);
     document.head.appendChild(script);
   }
-
-  function buildPriceChips() {
-    const bar = document.getElementById('price-chip-bar');
-    if (!bar) return;
-    bar.innerHTML = '';
-    PRICE_RANGES.forEach(r => {
-      const btn = document.createElement('button');
-      btn.className = 'price-chip' + (currentPrice.min === r.min && currentPrice.max === r.max ? ' active' : '');
-      btn.textContent = r.label;
-      btn.onclick = () => {
-        currentPrice = (currentPrice.min === r.min && currentPrice.max === r.max)
-          ? { min: null, max: null } : { min: r.min, max: r.max };
-        currentPage = 1;
-        buildPriceChips();
-        loadProducts();
-      };
-      bar.appendChild(btn);
-    });
-  }
-  buildPriceChips();
 
   function categoryGroups() {
     return activeCategoryTree(categoryTree).map(root => ({
@@ -271,7 +235,15 @@ Router.register('/products', async (params) => {
       btn.className = 'cat-pill' + (isGroupActive ? ' active' : '');
       btn.innerHTML = `<i class="fas ${group.icon}" style="font-size:.75rem"></i> ${group.label}` +
         (availSubs.length ? ` <i class="fas fa-chevron-down" style="font-size:.6rem;opacity:.65"></i>` : '');
-      btn.onclick = () => { currentCat = headId; currentPage = 1; loadProducts(); buildCatFilter(cats, headId); };
+      btn.onclick = () => {
+        if (availSubs.length && window.innerWidth <= 900) {
+          const wasOpen = wrap.classList.contains('open');
+          bar.querySelectorAll('.cat-pill-group.open').forEach(el => { if (el !== wrap) el.classList.remove('open'); });
+          wrap.classList.toggle('open', !wasOpen);
+          return;
+        }
+        currentCat = headId; currentPage = 1; loadProducts(); buildCatFilter(cats, headId);
+      };
       wrap.appendChild(btn);
 
       if (availSubs.length) {
@@ -281,7 +253,13 @@ Router.register('/products', async (params) => {
           const item = document.createElement('button');
           item.className = 'cat-pill-flyout-item' + (activeCat === sub.id ? ' active' : '');
           item.textContent = sub.label;
-          item.onclick = e => { e.stopPropagation(); currentCat = sub.id; currentPage = 1; loadProducts(); buildCatFilter(cats, sub.id); };
+          item.onclick = e => {
+            e.stopPropagation();
+            currentCat = sub.id;
+            currentPage = 1;
+            loadProducts();
+            buildCatFilter(cats, sub.id);
+          };
           flyout.appendChild(item);
         });
         wrap.appendChild(flyout);
@@ -314,8 +292,6 @@ Router.register('/products', async (params) => {
       let url = `/products?page=${currentPage}&per_page=12&sort=${sort}`;
       if (currentCat) url += `&category=${currentCat}`;
       if (currentSearch) url += `&search=${encodeURIComponent(currentSearch)}`;
-      if (currentPrice.min !== null) url += `&min_price=${currentPrice.min}`;
-      if (currentPrice.max !== null) url += `&max_price=${currentPrice.max}`;
       const { products, total } = await api.get(url);
       if (Router.stale(_gen)) return;
 
@@ -336,7 +312,7 @@ Router.register('/products', async (params) => {
             <div class="empty-state product-empty-state" style="grid-column:1/-1">
               <i class="fas fa-search"></i>
               <h3>No products found${currentSearch ? ` for “${esc(currentSearch)}”` : ''}</h3>
-              <p>Try a different search, category, or price range.</p>
+              <p>Try a different search or category.</p>
               <button class="btn btn-primary btn-sm mt16" id="empty-clear-product-filters" type="button">Clear filters</button>
             </div>
             <div style="grid-column:1/-1;margin-top:8px">
@@ -349,11 +325,9 @@ Router.register('/products', async (params) => {
           document.getElementById('empty-clear-product-filters')?.addEventListener('click', () => {
             currentCat = '';
             currentSearch = '';
-            currentPrice = { min: null, max: null };
             currentPage = 1;
             const search = document.getElementById('search-box');
             if (search) search.value = '';
-            buildPriceChips();
             buildCatFilter(allCats, '');
             loadProducts();
           });

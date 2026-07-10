@@ -51,8 +51,12 @@ const Cart = {
       return raw.map(item => this._cleanItem(item)).filter(Boolean).slice(0, 50);
     } catch { return []; }
   },
-  save(items) { localStorage.setItem('cart', JSON.stringify(items)); this.updateBadge(); },
-  add(product, qty = 1, variation = null, customPrint = null) {
+  save(items) {
+    localStorage.setItem('cart', JSON.stringify(items));
+    this.updateBadge();
+    window.dispatchEvent(new CustomEvent('cart:updated', { detail: { count: this.count() } }));
+  },
+  add(product, qty = 1, variation = null, customPrint = null, opts = {}) {
     const items = this.get();
     // Custom print items are always unique (different uploaded images)
     const key = customPrint
@@ -68,7 +72,8 @@ const Cart = {
       if (cleaned) items.push(cleaned);
     }
     this.save(items);
-    toast('Added to cart!', 'success');
+    if (!opts.silent) toast('Added to cart!', 'success');
+    return key;
   },
   remove(key) { this.save(this.get().filter(i => i.key !== key)); },
   updateQty(key, qty) {
@@ -81,8 +86,17 @@ const Cart = {
   total() { return this.get().reduce((s, i) => s + i.price * i.qty, 0); },
   count() { return this.get().reduce((s, i) => s + i.qty, 0); },
   updateBadge() {
-    const el = document.querySelector('.cart-count');
-    if (el) { const c = this.count(); el.textContent = c; el.style.display = c ? 'flex' : 'none'; }
+    const c = this.count();
+    document.querySelectorAll('.cart-count,.mobile-cart-count').forEach(el => {
+      el.textContent = c;
+      el.style.display = c ? 'flex' : 'none';
+      el.setAttribute('aria-label', `${c} item${c === 1 ? '' : 's'} in cart`);
+    });
+    document.querySelectorAll('.mobile-header-cart').forEach(el => {
+      el.classList.toggle('visible', c > 0);
+      el.setAttribute('aria-hidden', c > 0 ? 'false' : 'true');
+      el.tabIndex = c > 0 ? 0 : -1;
+    });
   }
 };
 
