@@ -860,6 +860,7 @@ async function printInvoice(idOrObj) {
   <div class="header">
     <div class="logo-wrap">
       <img src="/images/logo-main.png" alt="Adhya Shakti Shop"
+        width="120" height="120" loading="lazy" decoding="async"
         data-csp-onerror="this.style.display='none';document.getElementById('brand-fallback').style.display='block'" />
       <div id="brand-fallback" style="display:none">
         <div class="brand-text">Adhya <span>Shakti</span> Shop</div>
@@ -916,7 +917,7 @@ async function printInvoice(idOrObj) {
         <tr>
           <td style="padding:8px 6px 8px 10px">
             ${safeMediaUrl(i.image)
-              ? `<img class="item-img" src="${safeMediaUrl(i.image)}" alt="" data-csp-onerror="this.style.opacity='.3'" />`
+              ? `<img class="item-img" src="${safeMediaUrl(i.image)}" alt="" loading="lazy" decoding="async" width="40" height="40" data-csp-onerror="this.style.opacity='.3'" />`
               : `<div style="width:40px;height:40px;background:#f3f3f0;border-radius:5px;border:1px solid #e5e5e5"></div>`}
           </td>
           <td>

@@ -454,6 +454,7 @@ Router.register('/admin/orders', async () => {
               <tr style="border-bottom:1px solid var(--border)">
                 <td style="padding:10px 4px;vertical-align:top">
                   <img src="${safeMediaUrl(i.image, 'https://placehold.co/48x48/f5f5f5/999?text=?')}"
+                    loading="lazy" decoding="async" width="48" height="48"
                     style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid var(--border)"
                     data-csp-onerror="this.src='https://placehold.co/48x48/f5f5f5/999?text=?'" />
                 </td>
@@ -476,6 +477,7 @@ Router.register('/admin/orders', async () => {
                             <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
                               <a href="${safeMediaUrl(u)}" target="_blank" rel="noopener noreferrer" title="Click to view full size">
                                 <img src="${safeMediaUrl(u)}"
+                                  loading="lazy" decoding="async" width="80" height="80"
                                   style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:2px solid var(--primary);cursor:zoom-in;display:block"
                                   data-csp-onerror="this.closest('div').style.display='none'" />
                               </a>
@@ -494,6 +496,7 @@ Router.register('/admin/orders', async () => {
                             <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
                               <a href="${safeMediaUrl(u)}" target="_blank" rel="noopener noreferrer" title="Click to view full size">
                                 <img src="${safeMediaUrl(u)}"
+                                  loading="lazy" decoding="async" width="80" height="80"
                                   style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:2px solid var(--secondary);cursor:zoom-in;display:block"
                                   data-csp-onerror="this.closest('div').style.display='none'" />
                               </a>

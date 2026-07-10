@@ -72,7 +72,7 @@ function renderNavbar() {
     ${!annDismissed ? `<div class="announcement-bar" id="announcement-bar"><i class="fas fa-truck"></i>&ensp;Free shipping on orders over $49 — <a href="/products" data-link>Shop Now →</a><button class="ann-close" data-csp-onclick="sessionStorage.setItem('ann_dismissed','1');this.closest('.announcement-bar').style.display='none';document.documentElement.style.setProperty('--nav-h','64px')" aria-label="Close">×</button></div>` : ''}
     <div class="container navbar-inner">
       <a href="/" data-link class="nav-logo">
-        <img src="/images/logo-main.png" alt="Adhya Shakti Shop" id="nav-logo-img" data-csp-onerror="document.getElementById('nav-logo-img').style.display='none'" />
+        <img src="/images/logo-main.png" alt="Adhya Shakti Shop" id="nav-logo-img" width="52" height="52" decoding="async" fetchpriority="high" data-csp-onerror="document.getElementById('nav-logo-img').style.display='none'" />
         <span class="logo-text" style="font-family:Georgia,serif;line-height:1.1">Adhya <span>Shakti</span><br><span style="font-size:.55rem;letter-spacing:2px;font-weight:400;color:var(--text-light);text-transform:uppercase;font-family:system-ui">Shop &nbsp;·&nbsp; Est. 2026</span></span>
       </a>
       <div class="nav-search">
@@ -293,7 +293,7 @@ async function fillSearchResults(box, q) {
     try { const imgs = typeof p.images === 'string' ? JSON.parse(p.images || '[]') : (p.images || []); img = imgs[0] || ''; } catch (e) {}
     const src = img ? esc(img) : 'https://placehold.co/44/f5f5f5/ccc?text=%20';
     return `<a href="/product/${encodeURIComponent(p.id)}" data-link class="nav-search-item" role="option">
-        <img src="${src}" alt="" loading="lazy" data-csp-onerror="this.src='https://placehold.co/44/f5f5f5/ccc?text=%20'" />
+        <img src="${src}" alt="" loading="lazy" decoding="async" width="44" height="44" data-csp-onerror="this.src='https://placehold.co/44/f5f5f5/ccc?text=%20'" />
         <span class="ns-name">${esc(p.name)}</span>
         <span class="ns-price">${fmt(p.price)}</span>
       </a>`;

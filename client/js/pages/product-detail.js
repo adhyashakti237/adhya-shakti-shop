@@ -8,7 +8,7 @@ function openLightbox(images, startIdx) {
   const draw = () => {
     ov.innerHTML = `
       <button class="lightbox-close" title="Close" aria-label="Close">×</button>
-      <div class="lightbox-figure"><img class="lightbox-img" src="${images[cur]}" alt="" /></div>
+      <div class="lightbox-figure"><img class="lightbox-img" src="${images[cur]}" alt="" decoding="async" /></div>
       ${images.length > 1 ? `
         <button class="lightbox-arrow lb-prev" aria-label="Previous image"><i class="fas fa-chevron-left"></i></button>
         <button class="lightbox-arrow lb-next" aria-label="Next image"><i class="fas fa-chevron-right"></i></button>
@@ -425,7 +425,7 @@ Router.register('/product/:id', async (params) => {
                     <div class="review-date">${fmtDate(r.created_at)}</div>
                   </div>
                   ${r.comment ? `<p style="color:#555;font-size:.93rem">${esc(r.comment)}</p>` : ''}
-                  ${(() => { const reviewImgs = (r.images || []).map(u => safeMediaUrl(u)).filter(Boolean); return reviewImgs.length ? `<div class="review-photos">${reviewImgs.map((im,i) => `<img src="${im}" alt="Photo from ${esc(r.user_name)}'s review" class="review-photo" data-csp-onclick="openLightbox(JSON.parse(decodeURIComponent('${encodeURIComponent(JSON.stringify(reviewImgs))}')),${i})" />`).join('')}</div>` : ''; })()}
+                  ${(() => { const reviewImgs = (r.images || []).map(u => safeMediaUrl(u)).filter(Boolean); return reviewImgs.length ? `<div class="review-photos">${reviewImgs.map((im,i) => `<img src="${im}" alt="Photo from ${esc(r.user_name)}'s review" class="review-photo" loading="lazy" decoding="async" width="72" height="72" data-csp-onclick="openLightbox(JSON.parse(decodeURIComponent('${encodeURIComponent(JSON.stringify(reviewImgs))}')),${i})" />`).join('')}</div>` : ''; })()}
                 </div>`).join('') : '<div class="empty-state" style="padding:40px 0"><i class="fas fa-star"></i><h3>No reviews yet</h3><p>Be the first to review this product</p></div>'}
             </div>
           </div>

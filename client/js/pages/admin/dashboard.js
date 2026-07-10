@@ -90,7 +90,7 @@ function renderLowStockMiniList(products = []) {
   }
   return products.map(p => `
     <a href="/admin/products?filter=low_stock&search=${encodeURIComponent(p.name || '')}" data-link class="admin-focus-item">
-      ${safeMediaUrl((p.images || [])[0]) ? `<img src="${safeMediaUrl((p.images || [])[0])}" alt="" />` : '<span class="admin-focus-thumb"></span>'}
+      ${safeMediaUrl((p.images || [])[0]) ? `<img src="${safeMediaUrl((p.images || [])[0])}" alt="" loading="lazy" decoding="async" width="36" height="36" />` : '<span class="admin-focus-thumb"></span>'}
       <div><strong>${esc(p.name || 'Product')}</strong><span>${Number(p.stock || 0) <= 0 ? 'Out of stock' : `${Number(p.stock || 0)} left`}</span></div>
     </a>`).join('');
 }
@@ -266,7 +266,7 @@ Router.register('/admin', async () => {
             ${stats.low_stock.map(p => `
               <tr>
                 <td style="display:flex;align-items:center;gap:10px">
-                  ${safeMediaUrl(p.images[0]) ? `<img src="${safeMediaUrl(p.images[0])}" alt="" style="width:36px;height:36px;object-fit:cover;border-radius:6px;flex-shrink:0" />` : '<div style="width:36px;height:36px;background:var(--bg);border-radius:6px;flex-shrink:0"></div>'}
+                  ${safeMediaUrl(p.images[0]) ? `<img src="${safeMediaUrl(p.images[0])}" alt="" loading="lazy" decoding="async" width="36" height="36" style="width:36px;height:36px;object-fit:cover;border-radius:6px;flex-shrink:0" />` : '<div style="width:36px;height:36px;background:var(--bg);border-radius:6px;flex-shrink:0"></div>'}
                   <span style="font-weight:600">${esc(p.name)}</span>
                 </td>
                 <td style="text-align:center">

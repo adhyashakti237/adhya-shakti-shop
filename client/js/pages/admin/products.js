@@ -181,7 +181,7 @@ Router.register('/admin/products', async () => {
       <tr>
         <td data-label="Product">
           <div style="display:flex;align-items:center;gap:10px">
-            <img class="admin-product-thumb" src="${safeMediaUrl((p.images||[])[0], 'https://placehold.co/44x44/f5f5f5/999?text=?')}" alt="" data-csp-onerror="this.src='https://placehold.co/44x44/f5f5f5/999?text=?'" />
+            <img class="admin-product-thumb" src="${safeMediaUrl((p.images||[])[0], 'https://placehold.co/44x44/f5f5f5/999?text=?')}" alt="" loading="lazy" decoding="async" width="44" height="44" data-csp-onerror="this.src='https://placehold.co/44x44/f5f5f5/999?text=?'" />
             <div class="admin-product-name-stack">
               <div style="font-weight:600">${esc(p.name)}</div>
               ${p.sku ? `<div class="text-sm text-muted">SKU: ${esc(p.sku)}</div>` : '<div class="text-sm text-muted">No SKU</div>'}
@@ -397,7 +397,7 @@ Router.register('/admin/products', async () => {
           <div class="img-preview-grid" id="pm-img-preview">
             ${images.map((im, i) => `
               <div class="img-preview-item">
-                <img src="${safeMediaUrl(im)}" alt="Product photo ${i + 1}" data-csp-onerror="this.style.opacity='.3'" />
+                <img src="${safeMediaUrl(im)}" alt="Product photo ${i + 1}" loading="lazy" decoding="async" data-csp-onerror="this.style.opacity='.3'" />
                 <button class="remove-img" data-csp-onclick="removeImg(${i})">×</button>
               </div>`).join('')}
           </div>
@@ -445,7 +445,7 @@ Router.register('/admin/products', async () => {
     window.removeImg = (idx) => {
       images.splice(idx, 1);
       document.getElementById('pm-img-preview').innerHTML = images.map((im, i) => `
-        <div class="img-preview-item"><img src="${safeMediaUrl(im)}" alt="Product photo ${i + 1}" /><button class="remove-img" data-csp-onclick="removeImg(${i})">×</button></div>`).join('');
+        <div class="img-preview-item"><img src="${safeMediaUrl(im)}" alt="Product photo ${i + 1}" loading="lazy" decoding="async" /><button class="remove-img" data-csp-onclick="removeImg(${i})">×</button></div>`).join('');
     };
     window.uploadProductImages = async (input) => {
       for (const file of input.files) {
@@ -455,7 +455,7 @@ Router.register('/admin/products', async () => {
         } catch (e) { toast(e.message, 'error'); }
       }
       document.getElementById('pm-img-preview').innerHTML = images.map((im, i) => `
-        <div class="img-preview-item"><img src="${safeMediaUrl(im)}" alt="Product photo ${i + 1}" /><button class="remove-img" data-csp-onclick="removeImg(${i})">×</button></div>`).join('');
+        <div class="img-preview-item"><img src="${safeMediaUrl(im)}" alt="Product photo ${i + 1}" loading="lazy" decoding="async" /><button class="remove-img" data-csp-onclick="removeImg(${i})">×</button></div>`).join('');
     };
   };
 

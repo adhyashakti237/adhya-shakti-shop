@@ -98,6 +98,7 @@ Router.register('/', async () => {
           <!-- Logo centered inside smallest ring with solid white backdrop -->
           <div style="position:relative;z-index:1;width:190px;height:190px;border-radius:50%;background:#FFF8EE;box-shadow:0 0 0 6px rgba(196,154,34,.35),0 8px 32px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;">
             <img src="/images/logo-main.png" alt="Adhya Shakti Shop"
+              width="170" height="170" loading="lazy" decoding="async"
               style="width:170px;height:170px;object-fit:contain;"
               data-csp-onerror="this.outerHTML='<div style=\'font-family:Georgia,serif;text-align:center\'><div style=\'font-size:2rem;font-weight:800;color:#1D5C4A\'>Adhya</div><div style=\'font-size:2rem;font-weight:800;color:#C49A22\'>Shakti</div></div>'" />
           </div>
@@ -254,7 +255,7 @@ Router.register('/', async () => {
     const cfg = panelCfg[key];
     return `
       <div class="collection-panel" data-csp-onclick="Router.navigate('${dest}')" style="${extraStyle}">
-        <img src="${cfg.img}" alt="${cfg.label}" loading="lazy" decoding="async" data-csp-onerror="this.style.display='none'" />
+        <img src="${cfg.img}" alt="${cfg.label}" loading="lazy" decoding="async" width="640" height="480" data-csp-onerror="this.style.display='none'" />
         <div class="collection-panel-overlay">
           <div style="font-size:.68rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:10px">Adhya Shakti Shop</div>
           <div style="font-size:clamp(1.6rem,7vw,2.4rem);font-weight:800;color:#fff;font-family:Georgia,serif;line-height:1.1;margin-bottom:10px;overflow-wrap:break-word;word-break:break-word">${cfg.label}</div>
@@ -275,7 +276,7 @@ Router.register('/', async () => {
     const sub = cfg.sub || `${kids} active categor${kids === 1 ? 'y' : 'ies'} ready to shop`;
     return `
       <div class="collection-panel" data-csp-onclick="Router.navigate('${dest || ('/products?category=' + type.id)}')" style="${extraStyle}">
-        <img src="${img}" alt="${esc(type.name)}" loading="lazy" decoding="async" data-csp-onerror="this.style.display='none'" />
+        <img src="${img}" alt="${esc(type.name)}" loading="lazy" decoding="async" width="640" height="480" data-csp-onerror="this.style.display='none'" />
         <div class="collection-panel-overlay">
           <div style="font-size:.68rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:10px">Adhya Shakti Shop</div>
           <div style="font-size:clamp(1.6rem,7vw,2.4rem);font-weight:800;color:#fff;font-family:Georgia,serif;line-height:1.1;margin-bottom:10px;overflow-wrap:break-word;word-break:break-word">${esc(type.name)}</div>
@@ -371,7 +372,7 @@ function renderSlider(sliders) {
       <div class="slider-track" id="slider-track">
         ${data.map((s, i) => `
           <div class="slide" style="background:none;padding:0;position:relative">
-            <img src="${s.image_url || bgs[i % bgs.length]}" alt="${s.title}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" loading="${i===0?'eager':'lazy'}" data-csp-onerror="this.style.background='linear-gradient(135deg,#1D5C4A,#0e2d23)';this.style.display='none'" />
+            <img src="${s.image_url || bgs[i % bgs.length]}" alt="${esc(s.title || 'Adhya Shakti Shop')}" width="1600" height="620" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" loading="${i===0?'eager':'lazy'}" decoding="async" fetchpriority="${i===0?'high':'auto'}" data-csp-onerror="this.style.background='linear-gradient(135deg,#1D5C4A,#0e2d23)';this.style.display='none'" />
             <div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(14,45,35,.88) 0%,rgba(14,45,35,.55) 55%,rgba(14,45,35,.1) 100%)"></div>
             <div style="position:relative;z-index:1;height:100%;display:flex;align-items:center;padding:0 clamp(16px,5vw,80px)">
               <div style="max-width:560px">

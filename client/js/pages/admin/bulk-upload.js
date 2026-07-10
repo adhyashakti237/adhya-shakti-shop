@@ -116,7 +116,7 @@ Router.register('/admin/bulk-upload', async () => {
                 <td>${Number(r.stock || 0)}</td>
                 <td>
                   <div class="bulk-thumb-row">
-                    ${(r.thumbs || []).map((src, i) => `<img src="${esc(src)}" alt="Preview ${i + 1}" loading="lazy" />`).join('')}
+                    ${(r.thumbs || []).map((src, i) => `<img src="${esc(src)}" alt="Preview ${i + 1}" loading="lazy" decoding="async" width="44" height="44" />`).join('')}
                     <span>${Number(r.images || 0)}</span>
                   </div>
                 </td>
