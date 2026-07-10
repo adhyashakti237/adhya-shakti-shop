@@ -158,8 +158,7 @@ function bindCustomerCancelDelegates() {
       event.stopPropagation();
       event.stopImmediatePropagation?.();
       const id = openBtn.dataset.orderId || '';
-      const orderNum = openBtn.dataset.orderNumber || '';
-      if (id) window.confirmCancelOrder(id, orderNum);
+      if (id) window.doCancelOrder(id);
       return;
     }
 
@@ -640,8 +639,9 @@ async function openOrderModal(id) {
         <button class="btn btn-ghost" type="button" data-csp-onclick="closeModal()">Close</button>
         ${['pending','processing'].includes(o.status) ? `
           <button class="btn btn-outline" style="border-color:var(--danger);color:var(--danger)"
-            type="button" data-cancel-open="1" data-order-id="${esc(o.id)}" data-order-number="${esc(o.order_number || '')}">
-            <i class="fas fa-times-circle"></i> Cancel Order
+            type="button" data-cancel-open="1" data-order-id="${esc(o.id)}" data-order-number="${esc(o.order_number || '')}"
+            data-csp-onclick="event.stopPropagation(); doCancelOrder('${o.id}')">
+            <i class="fas fa-times-circle"></i> Cancel Order & Refund
           </button>` : ''}
         ${['shipped','delivered'].includes(o.status) ? `
           <button class="btn btn-outline" style="border-color:#c2410c;color:#c2410c"
@@ -758,7 +758,8 @@ window.confirmCancelOrder = (id, orderNum) => {
 
 window.doCancelOrder = async (id) => {
   const _gen = Router._gen;
-  const btn = document.querySelector('[data-cancel-submit="1"]');
+  const btn = [...document.querySelectorAll('[data-cancel-submit="1"], [data-cancel-open="1"]')]
+    .find(el => el.dataset.orderId === id);
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cancelling...'; }
   try {
     const res = await api.post(`/orders/${id}/cancel`, {});
@@ -768,7 +769,7 @@ window.doCancelOrder = async (id) => {
     setTimeout(() => { if (!Router.stale(_gen)) Router.navigate('/dashboard/orders'); }, 1200);
   } catch (e) {
     if (!Router.stale(_gen)) toast(e.message, 'error');
-    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-times-circle"></i> Yes, Cancel & Refund'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = btn.matches('[data-cancel-open]') ? '<i class="fas fa-times-circle"></i> Cancel Order & Refund' : '<i class="fas fa-times-circle"></i> Yes, Cancel & Refund'; }
   }
 };
 
