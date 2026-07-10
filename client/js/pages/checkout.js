@@ -1,16 +1,83 @@
-Router.register('/checkout', () => {
+Router.register('/checkout', async () => {
   const _gen = Router._gen;
   const app = document.getElementById('app');
-  const items = Cart.get();
-  if (!items.length) { Router.navigate('/cart'); return; }
+  const cartItems = Cart.get();
+  if (!cartItems.length) { Router.navigate('/cart'); return; }
+  app.innerHTML = `
+    <div class="container section">
+      <div class="checkout-loading-card">
+        <div class="spinner"></div>
+        <h2>Checking your cart</h2>
+        <p>We are confirming current prices, stock, selected options, and coupon details before payment.</p>
+      </div>
+    </div>`;
   const user = Auth.getUser();
-  const subtotal = Cart.total();
-  const shipping = subtotal >= 49 ? 0 : 7.99;
-  let discount = 0;
-  let appliedCoupon = null;
+  const savedCouponCode = (sessionStorage.getItem('cart_coupon_code') || '').trim().toUpperCase();
+
+  function orderItemsPayloadFrom(list) {
+    return (list || []).map(i => ({
+      id: i.id,
+      qty: i.qty,
+      variation: i.variation,
+      customPrint: i.customPrint || null,
+    }));
+  }
+
+  async function validateCheckoutCart(couponCode = '') {
+    return api.post('/cart/validate', {
+      items: orderItemsPayloadFrom(cartItems),
+      coupon_code: couponCode,
+      customer_email: document.getElementById('co-email')?.value.trim() || user?.email || '',
+    });
+  }
+
+  function showCheckoutBlocked(message) {
+    app.innerHTML = `
+      <div class="container section">
+        <div class="checkout-blocked-card">
+          <div class="checkout-blocked-icon"><i class="fas fa-triangle-exclamation"></i></div>
+          <h1>Review your cart first</h1>
+          <p>${esc(message || 'Something in your cart needs attention before checkout.')}</p>
+          <div class="checkout-blocked-actions">
+            <a href="/cart" data-link class="btn btn-primary"><i class="fas fa-shopping-cart"></i> Review Cart</a>
+            <a href="/products" data-link class="btn btn-outline"><i class="fas fa-store"></i> Continue Shopping</a>
+          </div>
+          <div class="checkout-safe-note"><i class="fas fa-lock"></i> No payment was attempted.</div>
+        </div>
+      </div>`;
+  }
+
+  let preflight;
+  let preflightNotice = '';
+  try {
+    if (savedCouponCode) {
+      try {
+        preflight = await validateCheckoutCart(savedCouponCode);
+      } catch (couponErr) {
+        sessionStorage.removeItem('cart_coupon_code');
+        preflightNotice = `${savedCouponCode} could not be applied: ${couponErr.message}. You can enter a different coupon below.`;
+        preflight = await validateCheckoutCart('');
+      }
+    } else {
+      preflight = await validateCheckoutCart('');
+    }
+  } catch (err) {
+    if (!Router.stale(_gen)) showCheckoutBlocked(err.message);
+    return;
+  }
+  if (Router.stale(_gen)) return;
+
+  const items = (preflight.items || []).map((serverItem, idx) => ({
+    ...(cartItems[idx] || {}),
+    ...serverItem,
+    key: cartItems[idx]?.key || `${serverItem.id}-${serverItem.variation || 'default'}`,
+  }));
+  const subtotal = Number(preflight.subtotal || 0);
+  const shipping = Number(preflight.shipping || 0);
+  let discount = Number(preflight.discount || 0);
+  let appliedCoupon = preflight.coupon_code || null;
   let checkoutSubmitting = false;
   let cardComplete = false;
-  const savedCouponCode = (sessionStorage.getItem('cart_coupon_code') || '').trim().toUpperCase();
 
   function getTotal() { return subtotal - discount + shipping; }
   function customPrintLabel(customPrint) {
@@ -68,6 +135,7 @@ Router.register('/checkout', () => {
               <div><i class="fas fa-envelope"></i><strong>Need help?</strong><span>contact@adhyashaktishop.com</span></div>
             </div>
             <div id="checkout-message" class="alert alert-error" style="display:none;margin-bottom:16px"></div>
+            ${preflightNotice ? `<div class="alert alert-warning" style="margin-bottom:16px"><strong>Coupon not applied.</strong> ${esc(preflightNotice)}</div>` : ''}
             <div class="checkout-confidence-note">
               <i class="fas fa-shield-halved"></i>
               <div>
@@ -185,12 +253,12 @@ Router.register('/checkout', () => {
                   </div>`).join('')}
               </div>
               <div class="coupon-row mb-16">
-                <input class="form-control" id="coupon-input" placeholder="Coupon code" value="${esc(savedCouponCode)}" />
+                <input class="form-control" id="coupon-input" placeholder="Coupon code" value="${esc(appliedCoupon || '')}" />
                 <button class="btn btn-outline" data-csp-onclick="applyCoupon()">Apply</button>
               </div>
-              <div id="coupon-msg"></div>
+              <div id="coupon-msg">${discount > 0 ? `<div class="badge badge-success mb-8"><i class="fas fa-tag"></i> Coupon applied! You save ${fmt(discount)}</div>` : ''}</div>
               <div class="summary-row"><span>Subtotal</span><span>${fmt(subtotal)}</span></div>
-              <div class="summary-row" id="discount-row" style="display:none"><span>Discount</span><span id="discount-val" style="color:var(--success)"></span></div>
+              <div class="summary-row" id="discount-row" style="${discount > 0 ? 'display:flex' : 'display:none'}"><span>Discount</span><span id="discount-val" style="color:var(--success)">${discount > 0 ? `-${fmt(discount)}` : ''}</span></div>
               <div class="summary-row"><span>Shipping</span><span>${shipping === 0 ? '<span style="color:var(--success)">FREE</span>' : fmt(shipping)}</span></div>
               <div class="summary-row total"><span>Total</span><span id="total-display" style="color:var(--primary)">${fmt(getTotal())}</span></div>
               <div class="alert alert-info" style="margin-top:14px;margin-bottom:0">
@@ -324,18 +392,17 @@ Router.register('/checkout', () => {
     const applyBtn = document.querySelector('.coupon-row .btn-outline');
     if (applyBtn) { applyBtn.disabled = true; applyBtn.textContent = 'Applying...'; }
     try {
-      const coupon = await api.post('/coupons/validate', {
-        code,
-        subtotal,
+      const validation = await api.post('/cart/validate', {
         items: orderItemsPayload(),
+        coupon_code: code,
         customer_email: document.getElementById('co-email')?.value.trim() || user?.email || '',
       });
-      if (typeof coupon.discount_amount === 'number') discount = coupon.discount_amount;
-      else if (coupon.discount_type === 'percent') discount = (subtotal * coupon.discount_value) / 100;
-      else discount = coupon.discount_value;
-      discount = Math.min(discount, subtotal);
-      appliedCoupon = code;
-      sessionStorage.setItem('cart_coupon_code', code);
+      if (Math.abs(Number(validation.subtotal || 0) - subtotal) > 0.02) {
+        throw new Error('Your cart changed. Please return to the cart and review it before checkout.');
+      }
+      discount = Number(validation.discount || 0);
+      appliedCoupon = validation.coupon_code || code;
+      sessionStorage.setItem('cart_coupon_code', appliedCoupon);
       document.getElementById('coupon-msg').innerHTML = `<div class="badge badge-success mb-8"><i class="fas fa-tag"></i> Coupon applied! You save ${fmt(discount)}</div>`;
       document.getElementById('discount-row').style.display = 'flex';
       document.getElementById('discount-val').textContent = `-${fmt(discount)}`;
@@ -416,7 +483,18 @@ Router.register('/checkout', () => {
     let paymentCompleted = false;
 
     try {
-      // 2 ── Create PaymentIntent from the server-calculated cart total
+      // 2 ── Re-check cart before payment setup, so stale stock/coupons stop before card processing.
+      const freshValidation = await api.post('/cart/validate', {
+        items: orderItemsPayload(),
+        coupon_code: appliedCoupon || '',
+        customer_email: document.getElementById('co-email')?.value.trim() || user?.email || '',
+      });
+      if (Math.abs(Number(freshValidation.total || 0) - getTotal()) > 0.02) {
+        document.getElementById('total-display').textContent = fmt(freshValidation.total || 0);
+        throw new Error('Your cart total changed. Please return to the cart and review it before payment.');
+      }
+
+      // 3 ── Create PaymentIntent from the server-calculated cart total
       const intentData = await api.post('/create-payment-intent', {
         items: orderItemsPayload(),
         coupon_code: appliedCoupon || '',
@@ -437,7 +515,7 @@ Router.register('/checkout', () => {
         throw new Error('Your cart total changed. Please review checkout and try again.');
       }
 
-      // 3 ── Confirm card payment via Stripe (this charges the card)
+      // 4 ── Confirm card payment via Stripe (this charges the card)
       btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing Payment...';
       const { paymentIntent, error } = await stripeInstance.confirmCardPayment(client_secret, {
         payment_method: {
@@ -475,7 +553,7 @@ Router.register('/checkout', () => {
       }
       paymentCompleted = true;
 
-      // 4 ── Payment succeeded — save order to database
+      // 5 ── Payment succeeded — save order to database
       btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving Order...';
       const payload = {
         customer_name:    document.getElementById('co-name').value.trim(),
@@ -518,27 +596,40 @@ Router.register('/checkout', () => {
       unlockCheckout();
     }
   };
-  if (savedCouponCode) setTimeout(() => window.applyCoupon(), 0);
+  if (savedCouponCode && !appliedCoupon) setTimeout(() => window.applyCoupon(), 0);
 });
 
 Router.register('/order-success', (params) => {
+  const orderNumber = String(params.order || '').trim();
+  const total = parseFloat(params.total) || 0;
   document.getElementById('app').innerHTML = `
-    <div class="container section text-center" style="max-width:600px;margin:0 auto;padding:80px 16px">
-      <div style="width:80px;height:80px;background:var(--success);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;font-size:2rem;color:#fff">
-        <i class="fas fa-check"></i>
-      </div>
-      <h1 style="font-size:2rem;font-weight:800;color:var(--success);margin-bottom:8px">Order Placed!</h1>
-      <p style="font-size:1.1rem;color:var(--text-light);margin-bottom:24px">Thank you for your purchase</p>
-      <div class="card mb-24"><div class="card-body">
-        <div class="summary-row"><span>Order Number</span><strong>${params.order}</strong></div>
-        <div class="summary-row"><span>Total Amount</span><strong style="color:var(--primary)">${fmt(parseFloat(params.total) || 0)}</strong></div>
-        <div class="summary-row"><span>Payment</span><span class="badge badge-paid">Paid</span></div>
-        <div class="summary-row"><span>Order Status</span><span class="badge badge-pending">Pending</span></div>
-      </div></div>
-      <p class="text-muted mb-24">You can view your full order details and track its status from your dashboard.</p>
-      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
-        <a href="/dashboard" data-link class="btn btn-primary">View My Orders</a>
-        <a href="/products" data-link class="btn btn-ghost">Continue Shopping</a>
+    <div class="container section order-success-wrap">
+      <div class="order-success-card">
+        <div class="order-success-icon"><i class="fas fa-check"></i></div>
+        <div class="order-success-kicker">Payment received</div>
+        <h1>Order placed successfully</h1>
+        <p>Thank you for your purchase. We emailed your confirmation and will update you as the order moves through processing and shipping.</p>
+
+        <div class="order-success-summary">
+          <div><span>Order number</span><strong>${esc(orderNumber)}</strong></div>
+          <div><span>Total paid</span><strong>${fmt(total)}</strong></div>
+          <div><span>Payment</span><strong class="success-text">Paid</strong></div>
+          <div><span>Status</span><strong>Pending review</strong></div>
+        </div>
+
+        <div class="order-success-next">
+          <div><i class="fas fa-envelope"></i><span>Confirmation email sent to the checkout email address.</span></div>
+          <div><i class="fas fa-box-open"></i><span>Most orders move to processing within 1-2 business days.</span></div>
+          <div><i class="fas fa-truck"></i><span>Tracking will appear when the package is ready with the carrier.</span></div>
+        </div>
+
+        <div class="order-success-actions">
+          <a href="/dashboard/orders" data-link class="btn btn-primary"><i class="fas fa-box"></i> View My Orders</a>
+          <a href="/track-order" data-link class="btn btn-outline"><i class="fas fa-location-dot"></i> Track by Order #</a>
+          <a href="/products" data-link class="btn btn-ghost"><i class="fas fa-store"></i> Continue Shopping</a>
+        </div>
+
+        <div class="checkout-safe-note"><i class="fas fa-headset"></i> Need help? Email contact@adhyashaktishop.com with order ${esc(orderNumber)}.</div>
       </div>
     </div>`;
 });

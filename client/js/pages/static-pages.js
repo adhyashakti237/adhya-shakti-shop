@@ -753,8 +753,8 @@ Router.register('/track-order', () => {
       result.innerHTML = `
         <div class="card track-result-card">
           <div class="card-header flex-between">
-            <span style="font-weight:700">Order <span style="color:var(--primary)">${order.order_number}</span></span>
-            <span style="background:${col}20;color:${col};padding:4px 12px;border-radius:20px;font-size:.82rem;font-weight:700;text-transform:capitalize">${order.status}</span>
+            <span style="font-weight:700">Order <span style="color:var(--primary)">${esc(order.order_number || '')}</span></span>
+            <span style="background:${col}20;color:${col};padding:4px 12px;border-radius:20px;font-size:.82rem;font-weight:700;text-transform:capitalize">${esc(order.status || '')}</span>
           </div>
           <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
             ${typeof accountOrderTimeline === 'function' ? accountOrderTimeline(order.status) : ''}

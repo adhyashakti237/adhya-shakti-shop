@@ -160,6 +160,10 @@ Router.register('/cart', async () => {
                 <div id="cart-coupon-msg" style="min-height:18px;margin-top:5px;font-size:.82rem"></div>
               </div>` : `
               <div style="margin-top:8px;font-size:.82rem;color:var(--success)"><i class="fas fa-tag" style="margin-right:4px"></i>Coupon <strong>${cartCoupon.code}</strong> applied!</div>`}
+              <div class="cart-checkout-note">
+                <i class="fas fa-shield-halved"></i>
+                <span>Before payment, checkout confirms current stock, selected color/size, coupon, shipping, and total.</span>
+              </div>
               <a href="/checkout" data-link class="btn btn-primary btn-block btn-lg mt-16"><i class="fas fa-lock"></i> Proceed to Checkout</a>
               <div class="text-center text-sm text-muted mt-16"><i class="fas fa-shield-alt"></i> Secure Checkout</div>
             </div>

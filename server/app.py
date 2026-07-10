@@ -3365,6 +3365,34 @@ def _calculate_order_totals(db, raw_items, raw_coupon_code='', *, check_stock=Tr
     }
 
 
+@app.route('/api/cart/validate', methods=['POST'])
+@limiter.limit("30 per minute; 200 per hour")
+def validate_cart():
+    data = request.json or {}
+    db = get_db()
+    raw_customer_email = clean_text(data.get('customer_email'), 140).lower()
+    customer_email = normalize_public_email(raw_customer_email) if raw_customer_email else ''
+    try:
+        user_id = current_customer_id_from_request(db)
+        totals = _calculate_order_totals(
+            db,
+            data.get('items'),
+            data.get('coupon_code'),
+            customer_email=customer_email,
+            user_id=user_id,
+        )
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    return jsonify({
+        'items': totals['stored_items'],
+        'subtotal': round(totals['subtotal'], 2),
+        'discount': round(totals['discount'], 2),
+        'shipping': round(totals['shipping'], 2),
+        'total': round(totals['total'], 2),
+        'coupon_code': totals['coupon_code'],
+    })
+
+
 def _reserve_order_stock(db, stored_items):
     for item in stored_items:
         pid = item['id']

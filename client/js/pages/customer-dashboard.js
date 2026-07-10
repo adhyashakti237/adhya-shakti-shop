@@ -460,10 +460,10 @@ async function openOrderModal(id) {
   try {
     const o = await api.get(`/orders/${id}`);
     if (Router.stale(_gen)) return;
-    const addr = o.shipping_address;
+    const addr = o.shipping_address || {};
     openModal(`
       <div class="modal-header">
-        <h3><i class="fas fa-receipt" style="color:var(--primary);margin-right:8px"></i>Order #${o.order_number}</h3>
+        <h3><i class="fas fa-receipt" style="color:var(--primary);margin-right:8px"></i>Order #${esc(o.order_number || '')}</h3>
         <button class="modal-close" data-csp-onclick="closeModal()" aria-label="Close">×</button>
       </div>
       <div class="modal-body">
@@ -722,13 +722,17 @@ window.doRequestReturn = async (id) => {
 async function printInvoice(idOrObj) {
   // Accept either an order ID string or a pre-fetched order object
   const o = typeof idOrObj === 'string' ? await api.get(`/orders/${idOrObj}`) : idOrObj;
-  const addr = o.shipping_address;
+  const addr = o.shipping_address || {};
   const win = window.open('', '_blank');
+  if (!win) {
+    toast('Please allow popups to open the invoice.', 'warning');
+    return;
+  }
   win.document.write(`<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8"/>
-  <title>Invoice — ${o.order_number}</title>
+  <title>Invoice — ${esc(o.order_number || '')}</title>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;background:#fff;padding:22px 28px;font-size:11px;line-height:1.4}
