@@ -11,11 +11,11 @@ Router.register('/admin/login', () => {
         <form data-csp-onsubmit="doAdminLogin(event)">
           <div class="form-group">
             <label class="form-label">Email</label>
-            <input class="form-control" id="admin-login-email" type="email" placeholder="you@example.com" required />
+            <input class="form-control" id="admin-login-email" type="email" placeholder="you@example.com" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" required />
           </div>
           <div class="form-group">
             <label class="form-label">Password</label>
-            <input class="form-control" id="admin-login-password" type="password" placeholder="••••••••" required />
+            <input class="form-control" id="admin-login-password" type="password" placeholder="••••••••" autocomplete="current-password" required />
           </div>
           <button class="btn btn-primary btn-block btn-lg" id="admin-login-btn">Sign In</button>
         </form>

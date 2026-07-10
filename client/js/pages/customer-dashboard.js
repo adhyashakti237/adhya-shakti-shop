@@ -417,10 +417,10 @@ Router.register('/dashboard/profile', async () => {
             </div>
             <form data-csp-onsubmit="saveProfile(event)" class="account-form">
               <div class="form-row">
-                <div class="form-group"><label class="form-label">Full Name</label><input class="form-control" id="p-name" value="${esc(profile.name || '')}" required /></div>
-                <div class="form-group"><label class="form-label">Phone</label><input class="form-control" id="p-phone" value="${esc(profile.phone || '')}" placeholder="Phone number" /></div>
+                <div class="form-group"><label class="form-label">Full Name</label><input class="form-control" id="p-name" value="${esc(profile.name || '')}" autocomplete="name" required /></div>
+                <div class="form-group"><label class="form-label">Phone</label><input class="form-control" id="p-phone" type="tel" value="${esc(profile.phone || '')}" placeholder="Phone number" autocomplete="tel" inputmode="tel" /></div>
               </div>
-              <div class="form-group"><label class="form-label">Email</label><input class="form-control" value="${esc(profile.email)}" disabled /><div class="text-muted text-sm" style="margin-top:5px">Email is used for login and order updates.</div></div>
+              <div class="form-group"><label class="form-label">Email</label><input class="form-control" value="${esc(profile.email)}" autocomplete="email" disabled /><div class="text-muted text-sm" style="margin-top:5px">Email is used for login and order updates.</div></div>
               <div class="account-saved-address">
                 <i class="fas fa-location-dot"></i>
                 <div>
@@ -434,7 +434,7 @@ Router.register('/dashboard/profile', async () => {
                 <div class="form-group"><label class="form-label">State</label><input class="form-control" id="p-state" value="${esc(savedAddress.state || '')}" placeholder="NJ" autocomplete="address-level1" /></div>
               </div>
               <div class="form-row">
-                <div class="form-group"><label class="form-label">ZIP Code</label><input class="form-control" id="p-pin" value="${esc(savedAddress.pin || savedAddress.zip || '')}" placeholder="08817" maxlength="10" autocomplete="postal-code" /></div>
+                <div class="form-group"><label class="form-label">ZIP Code</label><input class="form-control" id="p-pin" value="${esc(savedAddress.pin || savedAddress.zip || '')}" placeholder="08817" maxlength="10" autocomplete="postal-code" inputmode="numeric" /></div>
                 <div class="form-group"><label class="form-label">Apt / Suite / Unit</label><input class="form-control" id="p-landmark" value="${esc(savedAddress.landmark || '')}" placeholder="Apt 4B" autocomplete="address-line2" /></div>
               </div>
               <button class="btn btn-primary" type="submit"><i class="fas fa-save"></i> Save Changes</button>

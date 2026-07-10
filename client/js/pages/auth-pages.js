@@ -7,11 +7,11 @@ Router.register('/login', () => {
         <form data-csp-onsubmit="doLogin(event)">
           <div class="form-group">
             <label class="form-label">Email</label>
-            <input class="form-control" id="login-email" type="email" placeholder="you@example.com" required />
+            <input class="form-control" id="login-email" type="email" placeholder="you@example.com" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" required />
           </div>
           <div class="form-group">
             <label class="form-label">Password</label>
-            <input class="form-control" id="login-password" type="password" placeholder="••••••••" required />
+            <input class="form-control" id="login-password" type="password" placeholder="••••••••" autocomplete="current-password" required />
           </div>
           <button class="btn btn-primary btn-block btn-lg" id="login-btn">Sign In</button>
           <div style="text-align:center;margin-top:12px"><a href="/forgot-password" data-link style="font-size:.85rem;color:var(--primary)">Forgot your password?</a></div>
@@ -50,21 +50,21 @@ Router.register('/register', () => {
         <form data-csp-onsubmit="doRegister(event)">
           <div class="form-group">
             <label class="form-label">Full Name</label>
-            <input class="form-control" id="reg-name" placeholder="John Doe" required />
+            <input class="form-control" id="reg-name" placeholder="John Doe" autocomplete="name" required />
           </div>
           <div class="form-row">
             <div class="form-group">
               <label class="form-label">Email</label>
-              <input class="form-control" id="reg-email" type="email" placeholder="you@example.com" required />
+              <input class="form-control" id="reg-email" type="email" placeholder="you@example.com" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" required />
             </div>
             <div class="form-group">
               <label class="form-label">Phone</label>
-              <input class="form-control" id="reg-phone" type="tel" placeholder="(555) 555-5555" />
+              <input class="form-control" id="reg-phone" type="tel" placeholder="(555) 555-5555" autocomplete="tel" inputmode="tel" />
             </div>
           </div>
           <div class="form-group">
             <label class="form-label">Password</label>
-            <input class="form-control" id="reg-password" type="password" placeholder="Min. 8 characters" required minlength="8" data-csp-oninput="updatePwStrength(this.value)" data-csp-onfocus="document.getElementById('pw-strength').style.display='block'" />
+            <input class="form-control" id="reg-password" type="password" placeholder="Min. 8 characters" autocomplete="new-password" required minlength="8" data-csp-oninput="updatePwStrength(this.value)" data-csp-onfocus="document.getElementById('pw-strength').style.display='block'" />
             <div id="pw-strength" style="display:none;margin-top:8px;padding:10px 12px;background:var(--bg);border-radius:8px;border:1px solid var(--border)">
               <div id="pw-c1" class="pw-check"><i class="fas fa-times-circle"></i> At least 8 characters</div>
               <div id="pw-c2" class="pw-check"><i class="fas fa-times-circle"></i> Uppercase letter (A–Z)</div>
@@ -75,7 +75,7 @@ Router.register('/register', () => {
           </div>
           <div class="form-group">
             <label class="form-label">Confirm Password</label>
-            <input class="form-control" id="reg-confirm" type="password" placeholder="Repeat password" required />
+            <input class="form-control" id="reg-confirm" type="password" placeholder="Repeat password" autocomplete="new-password" required />
           </div>
           <button class="btn btn-primary btn-block btn-lg" id="reg-btn">Create Account</button>
         </form>
@@ -135,7 +135,7 @@ Router.register('/forgot-password', () => {
         <form data-csp-onsubmit="doForgotPassword(event)">
           <div class="form-group">
             <label class="form-label">Email Address</label>
-            <input class="form-control" id="fp-email" type="email" placeholder="you@example.com" required />
+            <input class="form-control" id="fp-email" type="email" placeholder="you@example.com" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" required />
             <div style="font-size:.8rem;color:var(--text-light);margin-top:6px">Enter the email you registered with and we'll send a reset link.</div>
           </div>
           <button class="btn btn-primary btn-block btn-lg" id="fp-btn">Send Reset Link</button>
@@ -171,7 +171,7 @@ Router.register('/reset-password', (params) => {
         <form data-csp-onsubmit="doResetPassword(event)">
           <div class="form-group">
             <label class="form-label">New Password</label>
-            <input class="form-control" id="rp-password" type="password" placeholder="Min. 8 characters" required minlength="8" data-csp-oninput="updateRpStrength(this.value)" data-csp-onfocus="document.getElementById('rp-strength').style.display='block'" />
+            <input class="form-control" id="rp-password" type="password" placeholder="Min. 8 characters" autocomplete="new-password" required minlength="8" data-csp-oninput="updateRpStrength(this.value)" data-csp-onfocus="document.getElementById('rp-strength').style.display='block'" />
             <div id="rp-strength" style="display:none;margin-top:8px;padding:10px 12px;background:var(--bg);border-radius:8px;border:1px solid var(--border)">
               <div id="rp-c1" class="pw-check"><i class="fas fa-times-circle"></i> At least 8 characters</div>
               <div id="rp-c2" class="pw-check"><i class="fas fa-times-circle"></i> Uppercase letter (A–Z)</div>
@@ -182,7 +182,7 @@ Router.register('/reset-password', (params) => {
           </div>
           <div class="form-group">
             <label class="form-label">Confirm New Password</label>
-            <input class="form-control" id="rp-confirm" type="password" placeholder="Repeat new password" required />
+            <input class="form-control" id="rp-confirm" type="password" placeholder="Repeat new password" autocomplete="new-password" required />
           </div>
           <button class="btn btn-primary btn-block btn-lg" id="rp-btn">Update Password</button>
         </form>

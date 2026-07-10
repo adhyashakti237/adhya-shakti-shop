@@ -158,29 +158,29 @@ Router.register('/checkout', async () => {
                 <div class="form-row">
                   <div class="form-group">
                     <label class="form-label">Full Name *</label>
-                    <input class="form-control" id="co-name" value="${esc(user?.name || '')}" placeholder="Enter full name" autocomplete="name" />
+                    <input class="form-control" id="co-name" value="${esc(user?.name || '')}" placeholder="Enter full name" autocomplete="shipping name" />
                   </div>
                   <div class="form-group">
                     <label class="form-label">Phone *</label>
-                    <input class="form-control" id="co-phone" type="tel" placeholder="(555) 555-5555" autocomplete="tel" />
+                    <input class="form-control" id="co-phone" type="tel" placeholder="(555) 555-5555" autocomplete="shipping tel" inputmode="tel" />
                   </div>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Email *</label>
-                  <input class="form-control" id="co-email" type="email" value="${esc(user?.email || '')}" placeholder="email@example.com" autocomplete="email" />
+                  <input class="form-control" id="co-email" type="email" value="${esc(user?.email || '')}" placeholder="email@example.com" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" />
                 </div>
                 <div class="form-group">
                   <label class="form-label">Street Address *</label>
-                  <input class="form-control" id="co-address" placeholder="123 Main St, Apt 4B" autocomplete="street-address" />
+                  <input class="form-control" id="co-address" placeholder="123 Main St, Apt 4B" autocomplete="shipping street-address" />
                 </div>
                 <div class="form-row">
                   <div class="form-group">
                     <label class="form-label">City *</label>
-                    <input class="form-control" id="co-city" placeholder="City" autocomplete="address-level2" />
+                    <input class="form-control" id="co-city" placeholder="City" autocomplete="shipping address-level2" />
                   </div>
                   <div class="form-group">
                     <label class="form-label">State *</label>
-                    <select class="form-control" id="co-state" autocomplete="address-level1">
+                    <select class="form-control" id="co-state" autocomplete="shipping address-level1">
                       <option value="">Select State</option>
                       <option>Alabama</option><option>Alaska</option><option>Arizona</option>
                       <option>Arkansas</option><option>California</option><option>Colorado</option>
@@ -205,16 +205,16 @@ Router.register('/checkout', async () => {
                 <div class="form-row">
                   <div class="form-group">
                     <label class="form-label">ZIP Code *</label>
-                    <input class="form-control" id="co-pin" placeholder="07001" maxlength="5" autocomplete="postal-code" />
+                    <input class="form-control" id="co-pin" placeholder="07001" maxlength="5" autocomplete="shipping postal-code" inputmode="numeric" pattern="[0-9]*" />
                   </div>
                   <div class="form-group">
                     <label class="form-label">Apt / Suite / Unit</label>
-                    <input class="form-control" id="co-landmark" placeholder="Apt 4B (optional)" autocomplete="address-line2" />
+                    <input class="form-control" id="co-landmark" placeholder="Apt 4B (optional)" autocomplete="shipping address-line2" />
                   </div>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Order Notes</label>
-                  <textarea class="form-control" id="co-notes" placeholder="Any special instructions..."></textarea>
+                  <textarea class="form-control" id="co-notes" placeholder="Any special instructions..." autocomplete="off" maxlength="1000"></textarea>
                 </div>
                 ${user ? `
                 <label class="checkout-save-address">
@@ -267,7 +267,7 @@ Router.register('/checkout', async () => {
                   </div>`).join('')}
               </div>
               <div class="coupon-row mb-16">
-                <input class="form-control" id="coupon-input" placeholder="Coupon code" value="${esc(appliedCoupon || '')}" />
+                <input class="form-control" id="coupon-input" placeholder="Coupon code" value="${esc(appliedCoupon || '')}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
                 <button class="btn btn-outline" data-csp-onclick="applyCoupon()">Apply</button>
               </div>
               <div id="coupon-msg">${discount > 0 ? `<div class="badge badge-success mb-8"><i class="fas fa-tag"></i> Coupon applied! You save ${fmt(discount)}</div>` : ''}</div>

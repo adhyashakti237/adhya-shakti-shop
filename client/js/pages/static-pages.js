@@ -364,9 +364,9 @@ Router.register('/contact', () => {
         <div>
           <h2>Get in Touch</h2>
           <form data-csp-onsubmit="submitContact(event)" style="margin-top:16px">
-            <div class="form-group"><label class="form-label">Your Name</label><input class="form-control" id="ct-name" placeholder="Jane Smith" required /></div>
-            <div class="form-group"><label class="form-label">Email Address</label><input class="form-control" id="ct-email" type="email" placeholder="you@example.com" required /></div>
-            <div class="form-group"><label class="form-label">Phone (optional)</label><input class="form-control" id="ct-phone" type="tel" placeholder="(555) 555-5555" /></div>
+            <div class="form-group"><label class="form-label">Your Name</label><input class="form-control" id="ct-name" placeholder="Jane Smith" autocomplete="name" required /></div>
+            <div class="form-group"><label class="form-label">Email Address</label><input class="form-control" id="ct-email" type="email" placeholder="you@example.com" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" required /></div>
+            <div class="form-group"><label class="form-label">Phone (optional)</label><input class="form-control" id="ct-phone" type="tel" placeholder="(555) 555-5555" autocomplete="tel" inputmode="tel" /></div>
             <div class="form-group">
               <label class="form-label">Inquiry Type</label>
               <select class="form-control" id="ct-inquiry">
@@ -379,7 +379,7 @@ Router.register('/contact', () => {
                 <option value="Other">Other</option>
               </select>
             </div>
-            <div class="form-group"><label class="form-label">Order Number <span id="ct-order-note" class="text-muted">(optional)</span></label><input class="form-control" id="ct-order" placeholder="e.g. ORD20260608ABC123" /></div>
+            <div class="form-group"><label class="form-label">Order Number <span id="ct-order-note" class="text-muted">(optional)</span></label><input class="form-control" id="ct-order" placeholder="e.g. ORD20260608ABC123" autocomplete="off" autocapitalize="characters" spellcheck="false" /></div>
             <div class="form-group"><label class="form-label">Message</label><textarea class="form-control" id="ct-msg" rows="5" maxlength="2000" placeholder="Tell us what happened, what product/order this is about, and what help you need." required></textarea><div class="form-hint">Please do not include card numbers, passwords, or private information.</div></div>
             <input type="text" id="ct-honeypot" name="website" style="display:none" tabindex="-1" autocomplete="off" />
             <button class="btn btn-primary" type="submit"><i class="fas fa-paper-plane"></i> Send Message</button>
@@ -782,11 +782,11 @@ Router.register('/track-order', () => {
           <form data-csp-onsubmit="doTrackOrder(event)">
             <div class="form-group">
               <label class="form-label">Order Number</label>
-              <input class="form-control" id="to-num" placeholder="e.g. AS-1001" required />
+              <input class="form-control" id="to-num" placeholder="e.g. AS-1001" autocomplete="off" autocapitalize="characters" spellcheck="false" required />
             </div>
             <div class="form-group">
               <label class="form-label">Email Address</label>
-              <input class="form-control" id="to-email" type="email" placeholder="The email used when placing the order" required />
+              <input class="form-control" id="to-email" type="email" placeholder="The email used when placing the order" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" required />
             </div>
             <button class="btn btn-primary" type="submit" id="to-btn"><i class="fas fa-search"></i> Track Order</button>
           </form>
@@ -928,21 +928,21 @@ Router.register('/bulk-orders', () => {
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label">Your Name *</label>
-                <input class="form-control" id="bo-name" placeholder="Jane Smith" required />
+                <input class="form-control" id="bo-name" placeholder="Jane Smith" autocomplete="name" required />
               </div>
               <div class="form-group">
                 <label class="form-label">Business / Organization</label>
-                <input class="form-control" id="bo-biz" placeholder="Optional" />
+                <input class="form-control" id="bo-biz" placeholder="Optional" autocomplete="organization" />
               </div>
             </div>
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label">Email Address *</label>
-                <input class="form-control" id="bo-email" type="email" placeholder="you@example.com" required />
+                <input class="form-control" id="bo-email" type="email" placeholder="you@example.com" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" required />
               </div>
               <div class="form-group">
                 <label class="form-label">Phone</label>
-                <input class="form-control" id="bo-phone" type="tel" placeholder="(555) 555-5555" />
+                <input class="form-control" id="bo-phone" type="tel" placeholder="(555) 555-5555" autocomplete="tel" inputmode="tel" />
               </div>
             </div>
             <div class="form-row">
@@ -959,7 +959,7 @@ Router.register('/bulk-orders', () => {
               </div>
               <div class="form-group">
                 <label class="form-label">Estimated Quantity</label>
-                <input class="form-control" id="bo-qty" placeholder="e.g. 50 pieces" />
+                <input class="form-control" id="bo-qty" placeholder="e.g. 50 pieces" inputmode="numeric" />
               </div>
             </div>
             <div class="form-group">
