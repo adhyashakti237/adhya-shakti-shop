@@ -3543,7 +3543,7 @@ def _payment_error_message(error, suffix):
 
 
 @app.route('/api/orders', methods=['POST'])
-@limiter.limit("10 per minute; 50 per hour")
+@limiter.limit("60 per minute; 300 per hour")
 def create_order():
     data = request.json or {}
     customer_name = clean_text(data.get('customer_name'), 100)
@@ -3552,15 +3552,6 @@ def create_order():
     raw_customer_phone = clean_text(data.get('customer_phone'), 30)
     customer_phone = normalize_public_phone(raw_customer_phone) if raw_customer_phone else ''
     notes = clean_text(data.get('notes'), 1000)
-    limited = public_abuse_guard(
-        'create_order',
-        email=customer_email or raw_customer_email,
-        ip_limit=24,
-        email_limit=10,
-        window_seconds=3600,
-    )
-    if limited:
-        return limited
     if not customer_name or not customer_email:
         return jsonify({'error': 'Name and email are required'}), 400
     if raw_customer_phone and not customer_phone:
@@ -3613,6 +3604,13 @@ def create_order():
             user_id=user_id,
         )
     except ValueError as exc:
+        log_security_event(
+            'paid_order_validation_failed',
+            'critical',
+            'Paid checkout failed cart validation before order save',
+            email=customer_email,
+            metadata={'payment_intent_id': payment_intent_id, 'error': str(exc)[:300]},
+        )
         refunded = _refund_succeeded_payment_intent(
             payment_intent_id,
             'Refunded paid checkout that failed cart validation before order save',
@@ -3720,6 +3718,17 @@ def create_order():
         locked_expected_cents = int(round(locked_totals['total'] * 100))
         if abs(intent['amount'] - locked_expected_cents) > 2 or locked_totals['cart_hash'] != totals['cart_hash']:
             db.rollback()
+            log_security_event(
+                'paid_order_changed_before_save',
+                'critical',
+                'Paid checkout cart changed before order save',
+                email=customer_email,
+                metadata={
+                    'payment_intent_id': payment_intent_id,
+                    'stripe_amount': int(intent['amount']),
+                    'expected_amount': locked_expected_cents,
+                },
+            )
             _refund_payment_intent(payment_intent_id, int(intent['amount']), 'Refunded changed cart/payment mismatch', email=customer_email)
             return jsonify({'error': 'Your cart changed before the order could be saved. The payment was refunded; please refresh checkout and try again.'}), 409
 
@@ -3760,18 +3769,25 @@ def create_order():
         db.commit()
     except ValueError as exc:
         db.rollback()
+        log_security_event(
+            'paid_order_stock_validation_failed',
+            'critical',
+            'Paid checkout failed final stock validation',
+            email=customer_email,
+            metadata={'payment_intent_id': payment_intent_id, 'error': str(exc)[:300]},
+        )
         refunded = _refund_payment_intent(payment_intent_id, int(intent['amount']), 'Refunded paid checkout that failed final stock validation', email=customer_email)
         if refunded:
             return jsonify({'error': _payment_error_message(exc, 'Your payment was refunded automatically.')}), 409
         return jsonify({'error': _payment_error_message(exc, 'Please contact support so we can refund this payment.')}), 409
-    except sqlite3.Error:
+    except sqlite3.Error as exc:
         db.rollback()
         log_security_event(
             'order_commit_failed',
             'critical',
             'Database error while saving paid order',
             email=customer_email,
-            metadata={'payment_intent_id': payment_intent_id},
+            metadata={'payment_intent_id': payment_intent_id, 'error': str(exc)[:300]},
         )
         return jsonify({'error': 'Could not save your order. Please contact support with your payment confirmation.'}), 500
 
