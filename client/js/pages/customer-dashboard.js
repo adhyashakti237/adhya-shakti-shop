@@ -150,13 +150,16 @@ function accountReturnReasonHtml(o) {
 function bindCustomerCancelDelegates() {
   if (window.__customerCancelDelegatesBound) return;
   window.__customerCancelDelegatesBound = true;
-  document.addEventListener('click', (event) => {
+
+  const handleCancelAction = (event) => {
     const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
     const openBtn = target?.closest?.('[data-cancel-open="1"]');
     if (openBtn) {
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation?.();
+      if (openBtn.dataset.cancelStarted === '1') return;
+      openBtn.dataset.cancelStarted = '1';
       const id = openBtn.dataset.orderId || '';
       if (id) window.doCancelOrder(id);
       return;
@@ -167,10 +170,16 @@ function bindCustomerCancelDelegates() {
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation?.();
+      if (submitBtn.dataset.cancelStarted === '1') return;
+      submitBtn.dataset.cancelStarted = '1';
       const id = submitBtn.dataset.orderId || '';
       if (id) window.doCancelOrder(id);
     }
-  }, true);
+  };
+
+  ['pointerdown', 'touchend', 'click'].forEach(type => {
+    document.addEventListener(type, handleCancelAction, true);
+  });
 }
 
 bindCustomerCancelDelegates();
@@ -639,8 +648,7 @@ async function openOrderModal(id) {
         <button class="btn btn-ghost" type="button" data-csp-onclick="closeModal()">Close</button>
         ${['pending','processing'].includes(o.status) ? `
           <button class="btn btn-outline" style="border-color:var(--danger);color:var(--danger)"
-            type="button" data-cancel-open="1" data-order-id="${esc(o.id)}" data-order-number="${esc(o.order_number || '')}"
-            data-csp-onclick="event.stopPropagation(); doCancelOrder('${o.id}')">
+            type="button" data-cancel-open="1" data-order-id="${esc(o.id)}" data-order-number="${esc(o.order_number || '')}">
             <i class="fas fa-times-circle"></i> Cancel Order & Refund
           </button>` : ''}
         ${['shipped','delivered'].includes(o.status) ? `
@@ -658,11 +666,6 @@ async function openOrderModal(id) {
         </button>
       </div>`);
 
-    modal.querySelector('[data-cancel-open="1"]')?.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      window.confirmCancelOrder(o.id, o.order_number);
-    });
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -769,7 +772,11 @@ window.doCancelOrder = async (id) => {
     setTimeout(() => { if (!Router.stale(_gen)) Router.navigate('/dashboard/orders'); }, 1200);
   } catch (e) {
     if (!Router.stale(_gen)) toast(e.message, 'error');
-    if (btn) { btn.disabled = false; btn.innerHTML = btn.matches('[data-cancel-open]') ? '<i class="fas fa-times-circle"></i> Cancel Order & Refund' : '<i class="fas fa-times-circle"></i> Yes, Cancel & Refund'; }
+    if (btn) {
+      btn.disabled = false;
+      btn.dataset.cancelStarted = '0';
+      btn.innerHTML = btn.matches('[data-cancel-open]') ? '<i class="fas fa-times-circle"></i> Cancel Order & Refund' : '<i class="fas fa-times-circle"></i> Yes, Cancel & Refund';
+    }
   }
 };
 
