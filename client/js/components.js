@@ -80,7 +80,7 @@ function renderNavbar() {
         <button class="search-btn" data-csp-onclick="doNavSearch()" aria-label="Search"><i class="fas fa-search"></i></button>
         <div class="nav-search-results" id="nav-search-results" role="listbox" hidden></div>
       </div>
-      <button class="hamburger" id="hamburger-btn" aria-label="Toggle menu">
+      <button class="hamburger" id="hamburger-btn" aria-label="Toggle menu" aria-controls="nav-links" aria-expanded="false">
         <span></span><span></span><span></span>
       </button>
       <nav class="nav-links" id="nav-links">
@@ -127,6 +127,7 @@ function renderNavbar() {
   function setMobileNavOpen(open) {
     navLinksEl?.classList.toggle('open', open);
     hamburgerEl?.classList.toggle('open', open);
+    hamburgerEl?.setAttribute('aria-expanded', open ? 'true' : 'false');
     document.body.classList.toggle('mobile-nav-open', !!open && window.innerWidth <= MOBILE_NAV_MAX);
   }
 
@@ -134,6 +135,7 @@ function renderNavbar() {
     window._mobileNavResizeBound = true;
     window.addEventListener('resize', () => {
       if (window.innerWidth > MOBILE_NAV_MAX) document.body.classList.remove('mobile-nav-open');
+      if (window.innerWidth > MOBILE_NAV_MAX) hamburgerEl?.setAttribute('aria-expanded', 'false');
     });
   }
 
@@ -265,6 +267,7 @@ function doNavSearch(inputId = 'nav-search-input') {
   if (val) {
     document.getElementById('nav-links')?.classList.remove('open');
     document.getElementById('hamburger-btn')?.classList.remove('open');
+    document.getElementById('hamburger-btn')?.setAttribute('aria-expanded', 'false');
     document.body.classList.remove('mobile-nav-open');
     Router.navigate(`/products?search=${encodeURIComponent(val)}`);
   }

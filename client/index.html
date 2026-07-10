@@ -31,10 +31,10 @@
 </head>
 <body>
   <a href="#app" class="skip-link">Skip to content</a>
-  <div id="app">
+  <div id="app" role="main" tabindex="-1">
     <!-- Rendered by router.js -->
   </div>
-  <div id="toast-container"></div>
+  <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
   <script src="https://js.stripe.com/v3/"></script>
   <script src="/js/api.js"></script>
   <script src="/js/auth.js"></script>

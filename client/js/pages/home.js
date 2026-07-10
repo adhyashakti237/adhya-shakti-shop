@@ -389,14 +389,18 @@ function renderSlider(sliders) {
       </div>
       <button class="slider-arrow prev" id="slider-prev" aria-label="Previous slide"><i class="fas fa-chevron-left"></i></button>
       <button class="slider-arrow next" id="slider-next" aria-label="Next slide"><i class="fas fa-chevron-right"></i></button>
-      <div class="slider-dots">${data.map((_, i) => `<button class="slider-dot ${i===0?'active':''}" data-index="${i}"></button>`).join('')}</div>
+      <div class="slider-dots" role="tablist" aria-label="Featured slides">${data.map((s, i) => `<button class="slider-dot ${i===0?'active':''}" data-index="${i}" role="tab" aria-label="Show slide ${i + 1}: ${esc(s.title || 'Featured slide')}" aria-selected="${i===0?'true':'false'}"></button>`).join('')}</div>
     </div>`;
 
   let cur = 0;
   const goSlide = (n) => {
     cur = (n + data.length) % data.length;
     document.getElementById('slider-track').style.transform = `translateX(-${cur * 100}%)`;
-    document.querySelectorAll('.slider-dot').forEach((d, i) => d.classList.toggle('active', i === cur));
+    document.querySelectorAll('.slider-dot').forEach((d, i) => {
+      const active = i === cur;
+      d.classList.toggle('active', active);
+      d.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
   };
   const slideBy = (d) => goSlide(cur + d);
   document.getElementById('slider-prev').addEventListener('click', () => slideBy(-1));
@@ -408,6 +412,16 @@ function renderSlider(sliders) {
   // Touch-swipe support
   const track = document.getElementById('slider-track');
   let touchStartX = 0, touchDeltaX = 0, dragging = false;
+  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  let auto = null;
+  const startAuto = () => {
+    if (reduceMotion || data.length <= 1) return;
+    clearInterval(auto);
+    auto = setInterval(() => {
+      if (!document.getElementById('slider-track')) { clearInterval(auto); return; }
+      slideBy(1);
+    }, 5000);
+  };
   track.addEventListener('touchstart', e => {
     touchStartX = e.touches[0].clientX; dragging = true;
     track.style.transition = 'none';
@@ -425,24 +439,14 @@ function renderSlider(sliders) {
     else goSlide(cur);
     touchDeltaX = 0;
     if (!document.getElementById('slider-track')) return;
-    auto = setInterval(() => {
-      if (!document.getElementById('slider-track')) { clearInterval(auto); return; }
-      slideBy(1);
-    }, 5000);
+    startAuto();
   });
 
-  let auto = setInterval(() => {
-    // Guard: stop the interval if the slider element is gone (user navigated away)
-    if (!document.getElementById('slider-track')) { clearInterval(auto); return; }
-    slideBy(1);
-  }, 5000);
+  startAuto();
   document.getElementById('hero-section').addEventListener('mouseenter', () => clearInterval(auto));
   document.getElementById('hero-section').addEventListener('mouseleave', () => {
     if (!document.getElementById('slider-track')) return;
-    auto = setInterval(() => {
-      if (!document.getElementById('slider-track')) { clearInterval(auto); return; }
-      slideBy(1);
-    }, 5000);
+    startAuto();
   });
 
   document.addEventListener('visibilitychange', () => {
@@ -450,10 +454,7 @@ function renderSlider(sliders) {
     if (document.hidden) {
       clearInterval(auto);
     } else {
-      auto = setInterval(() => {
-        if (!document.getElementById('slider-track')) { clearInterval(auto); return; }
-        slideBy(1);
-      }, 5000);
+      startAuto();
     }
   });
 }

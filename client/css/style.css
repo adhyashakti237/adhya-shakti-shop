@@ -31,6 +31,22 @@ button { cursor: pointer; font-family: inherit; }
 input, select, textarea { font-family: inherit; font-size: 1rem; }
 ul { list-style: none; }
 
+:focus-visible {
+  outline: 3px solid rgba(196,154,34,.9);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 5px rgba(196,154,34,.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .001ms !important;
+  }
+}
+
 /* ── Layout ───────────────────────────────────────────────── */
 .container { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
 .page { min-height: calc(100vh - var(--nav-h)); padding-bottom: 60px; }
@@ -1546,7 +1562,7 @@ tr:hover td { background: var(--bg); }
   font-weight: 700; font-size: .9rem; text-decoration: none;
   transition: top .15s;
 }
-.skip-link:focus { top: 0; }
+.skip-link:focus, .skip-link:focus-visible { top: 0; color: #fff; }
 
 /* ── Instagram card hover (replaces inline onmouseover) ──── */
 .insta-card {

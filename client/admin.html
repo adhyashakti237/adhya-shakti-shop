@@ -11,10 +11,11 @@
   <style>:root{--nav-h:0px}</style>
 </head>
 <body>
-  <div id="app">
+  <a href="#app" class="skip-link">Skip to content</a>
+  <div id="app" role="main" tabindex="-1">
     <!-- Rendered by router.js -->
   </div>
-  <div id="toast-container"></div>
+  <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
   <script src="/js/api.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/csp-actions.js"></script>
