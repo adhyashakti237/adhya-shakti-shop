@@ -140,11 +140,14 @@ const Router = {
     'doLogin', 'doRegister', 'doForgotPassword', 'doResetPassword', 'updatePwStrength', 'updateRpStrength',
     'renderCart', 'confirmClearCart', 'applyCartCoupon', 'removeCartCoupon',
     'submitPopupEmail',
-    'openWriteReview', '_wrSelectProduct', '_wrRate', '_wrSubmit', 'handleReviewPhoto',
+    '_wrSelectProduct', '_wrRate', '_wrSubmit', 'handleReviewPhoto',
     'csSignup', 'toggleFaq', 'deleteReview',
     'clothingSignup', 'customPrintSignup',
     'changePassword', 'saveProfile', 'filterMyOrders', 'viewOrder', 'trackOrder', 'applyWelcomeDiscount',
-    'confirmCancelOrder', 'doCancelOrder', 'confirmRequestReturn', 'doRequestReturn', 'printInvoice',
+    // NOTE: openWriteReview / confirmCancelOrder / doCancelOrder / confirmRequestReturn /
+    // doRequestReturn are assigned ONCE at script load (top level of customer-dashboard.js),
+    // not re-created per render — listing them here deletes them on the first navigation
+    // and every order-action button silently dies. Keep them out of this cleanup list.
     'doTrackOrder', 'submitContact', 'submitBulkOrder',
     // Admin/staff bundle (admin.html) — same shared cleanup list
     'doAdminLogin', 'searchProducts', 'goProductPage',

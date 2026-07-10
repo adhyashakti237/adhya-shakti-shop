@@ -64,6 +64,7 @@
     'editOrderStatus',
     'filterSecurityByIp',
     'filterMyOrders',
+    'filterFaqs',
     'goProductPage',
     'goToProductImage',
     'handlePrintUpload',

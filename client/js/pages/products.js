@@ -249,6 +249,19 @@ Router.register('/products', async (params) => {
       if (availSubs.length) {
         const flyout = document.createElement('div');
         flyout.className = 'cat-pill-flyout';
+        // "All <group>" entry so mobile users (where tapping the pill only opens
+        // this flyout) can still filter by the whole parent category.
+        const allItem = document.createElement('button');
+        allItem.className = 'cat-pill-flyout-item' + (activeCat === headId ? ' active' : '');
+        allItem.innerHTML = `<strong>All ${esc(group.label)}</strong>`;
+        allItem.onclick = e => {
+          e.stopPropagation();
+          currentCat = headId;
+          currentPage = 1;
+          loadProducts();
+          buildCatFilter(cats, headId);
+        };
+        flyout.appendChild(allItem);
         availSubs.forEach(sub => {
           const item = document.createElement('button');
           item.className = 'cat-pill-flyout-item' + (activeCat === sub.id ? ' active' : '');

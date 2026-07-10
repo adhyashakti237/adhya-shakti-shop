@@ -308,8 +308,6 @@ async function fillSearchResults(box, q) {
   box.hidden = false;
 }
 
-let quickAddResetTimer = null;
-
 function showCartAddFeedback(product, qty) {
   let box = document.getElementById('cart-add-feedback');
   if (!box) {
@@ -318,11 +316,12 @@ function showCartAddFeedback(product, qty) {
     box.className = 'cart-add-feedback';
     document.body.appendChild(box);
   }
+  const removed = Number(qty || 0) <= 0;
   box.innerHTML = `
-    <div class="cart-add-feedback-icon"><i class="fas fa-check"></i></div>
+    <div class="cart-add-feedback-icon"><i class="fas ${removed ? 'fa-minus' : 'fa-check'}"></i></div>
     <div class="cart-add-feedback-copy">
-      <strong>Added to cart</strong>
-      <span>${esc(product?.name || 'Item')} · Qty ${Number(qty || 1)}</span>
+      <strong>${removed ? 'Removed from cart' : 'Added to cart'}</strong>
+      <span>${esc(product?.name || 'Item')}${removed ? '' : ` · Qty ${Number(qty || 1)}`}</span>
     </div>
     <a href="/cart" data-link class="cart-add-feedback-link">View cart</a>`;
   box.classList.add('visible');
@@ -351,6 +350,7 @@ function renderQuickStepper(btn, product, key) {
 
 function resetQuickAddButton(btn) {
   if (!btn || !btn.classList.contains('stepper')) return;
+  clearTimeout(btn._qaResetTimer);
   btn.classList.remove('stepper', 'added');
   btn.removeAttribute('data-cart-key');
   btn.removeAttribute('data-qa-product');
@@ -358,10 +358,23 @@ function resetQuickAddButton(btn) {
   btn.innerHTML = '<i class="fas fa-cart-plus"></i>';
 }
 
+// Per-button timer: quick-adding a second product must not cancel the first
+// button's pending reset (a shared timer left earlier steppers stuck open).
 function scheduleQuickAddReset(btn) {
-  clearTimeout(quickAddResetTimer);
-  quickAddResetTimer = setTimeout(() => resetQuickAddButton(btn), 5000);
+  clearTimeout(btn._qaResetTimer);
+  btn._qaResetTimer = setTimeout(() => resetQuickAddButton(btn), 5000);
 }
+
+// The quick-add overlay is a <div role="button"> (a real <button> can't nest the
+// stepper's inner buttons), so Enter/Space don't fire a click natively.
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const el = e.target;
+  if (el?.classList?.contains('product-quickadd-overlay') && !el.classList.contains('stepper')) {
+    e.preventDefault();
+    el.click();
+  }
+});
 
 function quickAdjustCart(btn, delta) {
   try {
