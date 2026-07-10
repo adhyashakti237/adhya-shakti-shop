@@ -3570,6 +3570,13 @@ def create_order():
         return jsonify({'error': 'Payment is required to place an order.'}), 400
     db = get_db()
     user_id = current_customer_id_from_request(db)
+    log_security_event(
+        'paid_order_save_started',
+        'info',
+        'Paid checkout order save reached server',
+        email=customer_email,
+        metadata={'payment_intent_id': payment_intent_id},
+    )
     existing_payment_order = row_to_dict(db.execute(
         "SELECT id,order_number,user_id,customer_email,total,discount FROM orders WHERE payment_intent_id=?",
         (payment_intent_id,)
@@ -3634,6 +3641,13 @@ def create_order():
     try:
         intent = stripe.PaymentIntent.retrieve(payment_intent_id)
         if intent['status'] != 'succeeded':
+            log_security_event(
+                'paid_order_payment_not_succeeded',
+                'warning',
+                'Payment intent was not succeeded during order save',
+                email=customer_email,
+                metadata={'payment_intent_id': payment_intent_id, 'status': intent.get('status')},
+            )
             return jsonify({'error': 'Payment was not completed successfully. Please try again.'}), 400
         expected_cents = int(round(total * 100))
         if str(intent.get('currency', '')).lower() != 'usd':
@@ -3676,7 +3690,14 @@ def create_order():
             refunded = _refund_payment_intent(payment_intent_id, int(intent['amount']), 'Refunded payment metadata/cart mismatch', email=customer_email)
             msg = 'Payment does not match this cart. The payment was refunded; please refresh checkout and try again.' if refunded else 'Payment does not match this cart. Please contact support for refund help.'
             return jsonify({'error': msg}), 400
-    except stripe.error.StripeError:
+    except stripe.error.StripeError as exc:
+        log_security_event(
+            'paid_order_payment_verify_failed',
+            'critical',
+            'Could not verify paid checkout with Stripe before order save',
+            email=customer_email,
+            metadata={'payment_intent_id': payment_intent_id, 'error': str(exc)[:300]},
+        )
         return jsonify({'error': 'Could not verify payment. Please contact support.'}), 400
 
     try:
