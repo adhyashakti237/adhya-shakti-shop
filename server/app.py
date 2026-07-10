@@ -238,8 +238,11 @@ def set_security_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     response.headers['X-Permitted-Cross-Domain-Policies'] = 'none'
+    response.headers['X-Download-Options'] = 'noopen'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.headers['Cross-Origin-Opener-Policy'] = 'same-origin-allow-popups'
+    response.headers['Origin-Agent-Cluster'] = '?1'
     response.headers['Permissions-Policy'] = (
         'camera=(), microphone=(), geolocation=(), usb=(), '
         'payment=(self), interest-cohort=()'
@@ -261,10 +264,14 @@ def set_security_headers(response):
         '/api/wishlist',
         '/api/upload',
         '/admin',
+        '/accounts',
     )
     if request.path.startswith(private_prefixes):
         response.headers['Cache-Control'] = 'no-store, max-age=0'
         response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    if request.path.startswith(('/api/', '/admin', '/accounts')):
+        response.headers['X-Robots-Tag'] = 'noindex, nofollow'
     return response
 
 
