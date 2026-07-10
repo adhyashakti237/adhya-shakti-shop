@@ -121,6 +121,15 @@ Router.register('/checkout', async () => {
       customPrint: i.customPrint || null,
     }));
   }
+  function checkoutShippingAddress() {
+    return {
+      line1:    document.getElementById('co-address').value.trim(),
+      city:     document.getElementById('co-city').value.trim(),
+      state:    document.getElementById('co-state').value,
+      pin:      document.getElementById('co-pin').value.trim(),
+      landmark: document.getElementById('co-landmark').value.trim(),
+    };
+  }
 
   app.innerHTML = `
     <div class="page">
@@ -207,6 +216,11 @@ Router.register('/checkout', async () => {
                   <label class="form-label">Order Notes</label>
                   <textarea class="form-control" id="co-notes" placeholder="Any special instructions..."></textarea>
                 </div>
+                ${user ? `
+                <label class="checkout-save-address">
+                  <input type="checkbox" id="co-save-profile" checked />
+                  <span><strong>Save these shipping details to my profile</strong><small>Next checkout can fill them automatically.</small></span>
+                </label>` : ''}
               </div>
             </div>
             <div class="card">
@@ -276,23 +290,47 @@ Router.register('/checkout', async () => {
     </div>`;
 
 
-  // ── Pre-fill shipping from last order (logged-in users) ─────────────────
+  // ── Pre-fill shipping from saved profile, then last order if needed ─────
   if (user) {
+    const set = (id, val, overwrite = false) => { const el = document.getElementById(id); if (el && val && (overwrite || !el.value)) el.value = val; };
+    const stateAliases = {
+      AL:'Alabama', AK:'Alaska', AZ:'Arizona', AR:'Arkansas', CA:'California', CO:'Colorado', CT:'Connecticut', DE:'Delaware',
+      FL:'Florida', GA:'Georgia', HI:'Hawaii', ID:'Idaho', IL:'Illinois', IN:'Indiana', IA:'Iowa', KS:'Kansas', KY:'Kentucky',
+      LA:'Louisiana', ME:'Maine', MD:'Maryland', MA:'Massachusetts', MI:'Michigan', MN:'Minnesota', MS:'Mississippi', MO:'Missouri',
+      MT:'Montana', NE:'Nebraska', NV:'Nevada', NH:'New Hampshire', NJ:'New Jersey', NM:'New Mexico', NY:'New York',
+      NC:'North Carolina', ND:'North Dakota', OH:'Ohio', OK:'Oklahoma', OR:'Oregon', PA:'Pennsylvania', RI:'Rhode Island',
+      SC:'South Carolina', SD:'South Dakota', TN:'Tennessee', TX:'Texas', UT:'Utah', VT:'Vermont', VA:'Virginia',
+      WA:'Washington', DC:'Washington D.C.', WV:'West Virginia', WI:'Wisconsin', WY:'Wyoming',
+    };
+    const setState = (val, overwrite = false) => {
+      const stEl = document.getElementById('co-state');
+      if (stEl && val && (overwrite || !stEl.value)) {
+        const wanted = stateAliases[String(val).trim().toUpperCase()] || String(val).trim();
+        const opt = [...stEl.options].find(o => o.value === wanted || o.text === wanted || o.value.toLowerCase() === wanted.toLowerCase() || o.text.toLowerCase() === wanted.toLowerCase());
+        if (opt) stEl.value = opt.value;
+      }
+    };
+    api.get('/auth/me').then(profile => {
+      let addr = {};
+      try { addr = profile.address ? JSON.parse(profile.address || '{}') : {}; } catch { addr = {}; }
+      set('co-name', profile.name, true);
+      set('co-phone', profile.phone);
+      set('co-address', addr.line1);
+      set('co-city', addr.city);
+      set('co-pin', addr.pin || addr.zip);
+      set('co-landmark', addr.landmark);
+      setState(addr.state);
+    }).catch(() => {});
     api.get('/orders/my').then(orders => {
       if (!orders.length) return;
       const last = orders[0];
       const addr = last.shipping_address || {};
-      const set = (id, val) => { const el = document.getElementById(id); if (el && val && !el.value) el.value = val; };
       set('co-phone',   last.customer_phone);
       set('co-address', addr.line1);
       set('co-city',    addr.city);
       set('co-pin',     addr.pin || addr.zip);
       set('co-landmark', addr.landmark);
-      const stEl = document.getElementById('co-state');
-      if (stEl && addr.state && !stEl.value) {
-        const opt = [...stEl.options].find(o => o.value === addr.state || o.text === addr.state);
-        if (opt) stEl.value = opt.value;
-      }
+      setState(addr.state);
     }).catch(() => {});
   }
 
@@ -501,13 +539,7 @@ Router.register('/checkout', async () => {
         customer_name:  document.getElementById('co-name').value,
         customer_email: document.getElementById('co-email').value.trim(),
         customer_phone: document.getElementById('co-phone').value.trim(),
-        shipping_address: {
-          line1:    document.getElementById('co-address').value.trim(),
-          city:     document.getElementById('co-city').value.trim(),
-          state:    document.getElementById('co-state').value,
-          pin:      document.getElementById('co-pin').value.trim(),
-          landmark: document.getElementById('co-landmark').value.trim(),
-        },
+        shipping_address: checkoutShippingAddress(),
       });
       const client_secret = intentData.client_secret;
       if (Math.abs(Number(intentData.total || 0) - getTotal()) > 0.02) {
@@ -559,13 +591,7 @@ Router.register('/checkout', async () => {
         customer_name:    document.getElementById('co-name').value.trim(),
         customer_email:   document.getElementById('co-email').value.trim(),
         customer_phone:   document.getElementById('co-phone').value.trim(),
-        shipping_address: {
-          line1:    document.getElementById('co-address').value.trim(),
-          city:     document.getElementById('co-city').value.trim(),
-          state:    document.getElementById('co-state').value,
-          pin:      document.getElementById('co-pin').value.trim(),
-          landmark: document.getElementById('co-landmark').value.trim(),
-        },
+        shipping_address: checkoutShippingAddress(),
         items: orderItemsPayload(),
         subtotal,
         shipping_charge:    shipping,
@@ -576,6 +602,13 @@ Router.register('/checkout', async () => {
       };
 
       const res = await api.post('/orders', payload);
+      if (user && document.getElementById('co-save-profile')?.checked) {
+        api.put('/user/profile', {
+          name: payload.customer_name,
+          phone: payload.customer_phone,
+          address: payload.shipping_address,
+        }).catch(() => {});
+      }
       Cart.clear();
       sessionStorage.removeItem('cart_coupon_code');
       Router.navigate(`/order-success?order=${res.order_number}&total=${res.total}`);

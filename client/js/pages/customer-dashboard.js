@@ -201,13 +201,19 @@ function accountOrderCard(o, compact = false) {
     </article>`;
 }
 
-function safeAddressLine(profile) {
+function parseAccountAddress(profile) {
   try {
     const parsed = profile && profile.address ? JSON.parse(profile.address || '{}') : {};
-    return parsed.line1 || '';
+    return parsed && typeof parsed === 'object' ? parsed : {};
   } catch {
-    return '';
+    return {};
   }
+}
+
+function accountAddressPreview(addr) {
+  const line = [addr.line1, addr.landmark].filter(Boolean).join(', ');
+  const cityLine = [addr.city, addr.state].filter(Boolean).join(', ') + (addr.pin ? ` ${addr.pin}` : '');
+  return [line, cityLine].filter(Boolean).join(' · ');
 }
 
 function showOrderTracking(id, status, trackingNumber = '') {
@@ -391,7 +397,8 @@ Router.register('/dashboard/profile', async () => {
   let profile;
   try { profile = await api.get('/auth/me'); } catch { profile = user; }
   if (Router.stale(_gen)) return;
-  const addressLine = safeAddressLine(profile);
+  const savedAddress = parseAccountAddress(profile);
+  const addressPreview = accountAddressPreview(savedAddress);
 
   dashLayout(user, `
     <div class="account-page">
@@ -414,7 +421,22 @@ Router.register('/dashboard/profile', async () => {
                 <div class="form-group"><label class="form-label">Phone</label><input class="form-control" id="p-phone" value="${esc(profile.phone || '')}" placeholder="Phone number" /></div>
               </div>
               <div class="form-group"><label class="form-label">Email</label><input class="form-control" value="${esc(profile.email)}" disabled /><div class="text-muted text-sm" style="margin-top:5px">Email is used for login and order updates.</div></div>
-              <div class="form-group"><label class="form-label">Default Address</label><input class="form-control" id="p-address" value="${esc(addressLine)}" placeholder="Street address" /></div>
+              <div class="account-saved-address">
+                <i class="fas fa-location-dot"></i>
+                <div>
+                  <strong>Saved shipping address</strong>
+                  <span>${addressPreview ? esc(addressPreview) : 'Add your address once, then checkout can fill it automatically.'}</span>
+                </div>
+              </div>
+              <div class="form-group"><label class="form-label">Street Address</label><input class="form-control" id="p-address" value="${esc(savedAddress.line1 || '')}" placeholder="123 Main St" autocomplete="street-address" /></div>
+              <div class="form-row">
+                <div class="form-group"><label class="form-label">City</label><input class="form-control" id="p-city" value="${esc(savedAddress.city || '')}" placeholder="City" autocomplete="address-level2" /></div>
+                <div class="form-group"><label class="form-label">State</label><input class="form-control" id="p-state" value="${esc(savedAddress.state || '')}" placeholder="NJ" autocomplete="address-level1" /></div>
+              </div>
+              <div class="form-row">
+                <div class="form-group"><label class="form-label">ZIP Code</label><input class="form-control" id="p-pin" value="${esc(savedAddress.pin || savedAddress.zip || '')}" placeholder="08817" maxlength="10" autocomplete="postal-code" /></div>
+                <div class="form-group"><label class="form-label">Apt / Suite / Unit</label><input class="form-control" id="p-landmark" value="${esc(savedAddress.landmark || '')}" placeholder="Apt 4B" autocomplete="address-line2" /></div>
+              </div>
               <button class="btn btn-primary" type="submit"><i class="fas fa-save"></i> Save Changes</button>
             </form>
           </div>
@@ -442,7 +464,23 @@ Router.register('/dashboard/profile', async () => {
   window.saveProfile = async (e) => {
     e.preventDefault();
     try {
-      await api.put('/user/profile', { name: document.getElementById('p-name').value, phone: document.getElementById('p-phone').value, address: { line1: document.getElementById('p-address').value } });
+      const pin = document.getElementById('p-pin').value.trim();
+      if (pin && !/^\d{5}(?:-\d{4})?$/.test(pin)) {
+        toast('Please enter a valid US ZIP code.', 'warning');
+        document.getElementById('p-pin').focus();
+        return;
+      }
+      await api.put('/user/profile', {
+        name: document.getElementById('p-name').value,
+        phone: document.getElementById('p-phone').value,
+        address: {
+          line1: document.getElementById('p-address').value,
+          city: document.getElementById('p-city').value,
+          state: document.getElementById('p-state').value,
+          pin,
+          landmark: document.getElementById('p-landmark').value,
+        },
+      });
       toast('Profile updated!', 'success');
     } catch (err) { toast(err.message, 'error'); }
   };

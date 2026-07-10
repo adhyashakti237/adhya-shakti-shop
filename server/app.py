@@ -4464,6 +4464,10 @@ def update_profile():
     name_error = validate_name(name)
     if name_error:
         return jsonify({'error': name_error}), 400
+    raw_phone = clean_text(data.get('phone'), 30)
+    phone = normalize_public_phone(raw_phone) if raw_phone else ''
+    if raw_phone and not phone:
+        return jsonify({'error': 'Please enter a valid phone number'}), 400
     addr = data.get('address') if isinstance(data.get('address'), dict) else {}
     clean_addr = {
         'line1': clean_text(addr.get('line1'), 180),
@@ -4472,9 +4476,11 @@ def update_profile():
         'pin': clean_text(addr.get('pin') or addr.get('zip'), 12),
         'landmark': clean_text(addr.get('landmark'), 120),
     }
+    if clean_addr['pin'] and not re.fullmatch(r'\d{5}(?:-\d{4})?', clean_addr['pin']):
+        return jsonify({'error': 'Please enter a valid US ZIP code'}), 400
     db = get_db()
     db.execute("UPDATE users SET name=?,phone=?,address=? WHERE id=?",
-               (name, clean_text(data.get('phone'), 30), json.dumps(clean_addr), g.user['id']))
+               (name, phone, json.dumps(clean_addr), g.user['id']))
     db.commit()
     return jsonify({'message': 'Profile updated'})
 
