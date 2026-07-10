@@ -342,7 +342,24 @@ Router.register('/contact', () => {
   document.getElementById('app').innerHTML = `
     <div class="static-page">
       <h1>Contact Us</h1>
-      <p class="lead">We'd love to hear from you. Reach out to us using any of the methods below.</p>
+      <p class="lead">Need help with an order, product, return, or custom request? Send the details once and we will reply within 1-2 business days.</p>
+      <div class="support-choice-grid">
+        <a href="/track-order" data-link class="support-choice-card">
+          <i class="fas fa-location-dot"></i>
+          <strong>Track an order</strong>
+          <span>Use your order number and checkout email.</span>
+        </a>
+        <a href="/refund" data-link class="support-choice-card">
+          <i class="fas fa-rotate-left"></i>
+          <strong>Returns & refunds</strong>
+          <span>Check cancellation, return, and exchange rules.</span>
+        </a>
+        <a href="/bulk-orders" data-link class="support-choice-card">
+          <i class="fas fa-boxes-stacked"></i>
+          <strong>Bulk quote</strong>
+          <span>For 10+ pieces, teams, events, or business orders.</span>
+        </a>
+      </div>
       <div class="grid-2 mt-24">
         <div>
           <h2>Get in Touch</h2>
@@ -362,10 +379,11 @@ Router.register('/contact', () => {
                 <option value="Other">Other</option>
               </select>
             </div>
-            <div class="form-group"><label class="form-label">Order Number (optional)</label><input class="form-control" id="ct-order" placeholder="e.g. AS-1001" /></div>
-            <div class="form-group"><label class="form-label">Message</label><textarea class="form-control" id="ct-msg" rows="4" placeholder="How can we help you?" required></textarea></div>
+            <div class="form-group"><label class="form-label">Order Number <span id="ct-order-note" class="text-muted">(optional)</span></label><input class="form-control" id="ct-order" placeholder="e.g. ORD20260608ABC123" /></div>
+            <div class="form-group"><label class="form-label">Message</label><textarea class="form-control" id="ct-msg" rows="5" maxlength="2000" placeholder="Tell us what happened, what product/order this is about, and what help you need." required></textarea><div class="form-hint">Please do not include card numbers, passwords, or private information.</div></div>
             <input type="text" id="ct-honeypot" name="website" style="display:none" tabindex="-1" autocomplete="off" />
             <button class="btn btn-primary" type="submit"><i class="fas fa-paper-plane"></i> Send Message</button>
+            <div id="ct-result" style="margin-top:14px"></div>
           </form>
         </div>
         <div>
@@ -384,17 +402,48 @@ Router.register('/contact', () => {
               <div><strong>WhatsApp</strong><p style="margin-top:4px"><a href="https://wa.me/c/18483363769" target="_blank" rel="noopener">View Our Product Catalog</a></p></div>
             </div>
           </div>
+          <div class="support-expectation-card">
+            <h3>What to include</h3>
+            <ul>
+              <li>Order number if your message is about an order</li>
+              <li>Photos for damaged, wrong, or defective items</li>
+              <li>Product name, size, color, and quantity for custom work</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>`;
+  window.updateContactHelp = () => {
+    const type = document.getElementById('ct-inquiry')?.value || '';
+    const note = document.getElementById('ct-order-note');
+    const msg = document.getElementById('ct-msg');
+    const orderRelated = ['Jewelry Order', 'Shipping', 'Return / Exchange'].includes(type);
+    if (note) note.textContent = orderRelated ? '(recommended)' : '(optional)';
+    if (msg && !msg.value) {
+      msg.placeholder = orderRelated
+        ? 'Please include your order number, product name, and what help you need.'
+        : type === 'Bulk Order'
+          ? 'Tell us the product, quantity, timeline, sizes/colors, and design idea.'
+          : 'Tell us what you need help with.';
+    }
+  };
+  document.getElementById('ct-inquiry')?.addEventListener('change', window.updateContactHelp);
+  window.updateContactHelp();
   window.submitContact = async (e) => {
     e.preventDefault();
     const form = e.target?.closest?.('form') || document.querySelector('form[data-csp-onsubmit="submitContact(event)"]');
     const btn = form?.querySelector('button[type=submit]');
+    const result = document.getElementById('ct-result');
     if (!btn || btn.disabled) return;
+    const msg = (document.getElementById('ct-msg')?.value || '').trim();
+    if (msg.length < 10) {
+      toast('Please add a little more detail so we can help properly.', 'warning');
+      document.getElementById('ct-msg')?.focus();
+      return;
+    }
     btn.disabled = true; btn.textContent = 'Sending...';
     try {
-      await api.post('/contact', {
+      const res = await api.post('/contact', {
         name:         document.getElementById('ct-name').value,
         email:        document.getElementById('ct-email').value,
         phone:        document.getElementById('ct-phone').value,
@@ -404,9 +453,13 @@ Router.register('/contact', () => {
         website:      document.getElementById('ct-honeypot').value,
       });
       toast('Message sent! We will get back to you within 1–2 business days.', 'success');
+      if (result) result.innerHTML = `<div class="alert alert-success"><strong>Message received.</strong><br>We emailed you a confirmation and will reply within 1-2 business days.${res.reference ? `<br>Reference: <strong>${esc(res.reference)}</strong>` : ''}</div>`;
       form?.reset();
+      window.updateContactHelp();
     } catch (err) {
-      toast('Could not send message. Please email us directly at contact@adhyashaktishop.com', 'error');
+      const message = err.message || 'Could not send message. Please email us directly at contact@adhyashaktishop.com';
+      toast(message, 'error');
+      if (result) result.innerHTML = `<div class="alert alert-error"><strong>Could not send.</strong><br>${esc(message)}<br>Email us directly at contact@adhyashaktishop.com.</div>`;
     } finally {
       btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Message';
     }
@@ -681,9 +734,13 @@ Router.register('/faq', () => {
     <div class="static-page">
       <h1>Frequently Asked Questions</h1>
       <p class="lead">Got a question? We've got answers. If you don't see what you're looking for, <a href="/contact" data-link>contact us</a>.</p>
+      <div class="faq-search-box">
+        <i class="fas fa-search"></i>
+        <input id="faq-search" class="form-control" placeholder="Search shipping, returns, bulk orders, payment..." data-csp-oninput="filterFaqs()" />
+      </div>
       <div style="margin-top:32px;display:flex;flex-direction:column;gap:0">
         ${faqs.map((f, i) => `
-          <div style="border-bottom:1px solid var(--border)">
+          <div class="faq-item" data-faq="${esc(`${f.q} ${f.a}`.toLowerCase())}" style="border-bottom:1px solid var(--border)">
             <button data-csp-onclick="toggleFaq(${i})" id="faq-btn-${i}" aria-expanded="false" aria-controls="faq-body-${i}" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;padding:20px 0;display:flex;justify-content:space-between;align-items:center;gap:16px">
               <span style="font-weight:700;font-size:1rem;color:var(--text)">${f.q}</span>
               <i id="faq-icon-${i}" class="fas fa-chevron-down" style="color:var(--primary);flex-shrink:0;transition:transform .25s"></i>
@@ -691,7 +748,19 @@ Router.register('/faq', () => {
             <div id="faq-body-${i}" role="region" aria-labelledby="faq-btn-${i}" style="display:none;padding-bottom:18px;color:var(--text-light);line-height:1.8">${f.a}</div>
           </div>`).join('')}
       </div>
+      <div id="faq-empty" class="empty-state" style="display:none;margin-top:24px"><i class="fas fa-circle-question"></i><h3>No matching answer found</h3><p>Send us a message and we will help directly.</p><a href="/contact" data-link class="btn btn-primary">Contact Us</a></div>
     </div>`;
+  window.filterFaqs = () => {
+    const q = (document.getElementById('faq-search')?.value || '').toLowerCase().trim();
+    let shown = 0;
+    document.querySelectorAll('.faq-item').forEach(item => {
+      const match = !q || item.dataset.faq.includes(q);
+      item.style.display = match ? '' : 'none';
+      if (match) shown++;
+    });
+    const empty = document.getElementById('faq-empty');
+    if (empty) empty.style.display = shown ? 'none' : '';
+  };
   window.toggleFaq = (i) => {
     const body = document.getElementById(`faq-body-${i}`);
     const icon = document.getElementById(`faq-icon-${i}`);
@@ -947,7 +1016,7 @@ Router.register('/bulk-orders', () => {
     btn.disabled = true; btn.textContent = 'Submitting...';
     if (result) result.innerHTML = '';
     try {
-      await api.post('/bulk-order', {
+      const res = await api.post('/bulk-order', {
         name:          document.getElementById('bo-name').value,
         business_name: document.getElementById('bo-biz').value,
         email:         document.getElementById('bo-email').value,
@@ -961,7 +1030,7 @@ Router.register('/bulk-orders', () => {
       window._bulkOrderSuccessAt = Date.now();
       toast('Inquiry submitted! We will get back to you within 1–2 business days.', 'success');
       if (result) {
-        result.innerHTML = '<div class="alert alert-info"><strong>Inquiry submitted.</strong><br>We will get back to you within 1–2 business days.</div>';
+        result.innerHTML = `<div class="alert alert-info"><strong>Inquiry submitted.</strong><br>We will get back to you within 1–2 business days.${res.reference ? `<br>Reference: <strong>${esc(res.reference)}</strong>` : ''}</div>`;
       }
       form?.reset();
     } catch (err) {

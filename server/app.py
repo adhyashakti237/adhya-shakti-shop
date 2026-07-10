@@ -6348,6 +6348,8 @@ def create_bulk_order():
         return jsonify({'error': 'Name and email are required'}), 400
     if raw_phone and not phone:
         return jsonify({'error': 'Please enter a valid phone number'}), 400
+    if message and len(message) < 10:
+        return jsonify({'error': 'Please add a little more detail so we can prepare an accurate quote.'}), 400
     if public_text_looks_spammy(name, product_type, quantity, needed_by, message):
         log_security_event('bulk_order_rejected', 'warning', 'Bulk inquiry looked unsafe or spammy', email=email)
         return jsonify({'error': 'Please remove unsupported text and try again.'}), 400
@@ -6355,9 +6357,10 @@ def create_bulk_order():
     if file_url and not is_safe_public_upload_url(file_url):
         return jsonify({'error': 'Invalid uploaded file reference'}), 400
     db = get_db()
+    request_id = str(uuid.uuid4())
     db.execute(
         "INSERT INTO bulk_orders (id,name,business_name,email,phone,product_type,quantity,needed_by,message,file_url) VALUES (?,?,?,?,?,?,?,?,?,?)",
-        (str(uuid.uuid4()), name, clean_text(data.get('business_name'), 120), email,
+        (request_id, name, clean_text(data.get('business_name'), 120), email,
          phone, product_type, quantity, needed_by, message, file_url)
     )
     db.commit()
@@ -6365,7 +6368,7 @@ def create_bulk_order():
         name, clean_text(data.get('business_name'), 120), email, phone,
         product_type, quantity, needed_by, message
     )
-    return jsonify({'message': 'Bulk order request received'})
+    return jsonify({'message': 'Bulk order request received', 'reference': request_id[:8].upper()})
 
 
 # ─── Contact Form ─────────────────────────────────────────────────────────────
@@ -6393,17 +6396,20 @@ def contact_form():
         return jsonify({'error': 'Name, email and message are required'}), 400
     if raw_phone and not phone:
         return jsonify({'error': 'Please enter a valid phone number'}), 400
+    if len(message) < 10:
+        return jsonify({'error': 'Please add a little more detail so we can help properly.'}), 400
     if public_text_looks_spammy(name, message, inquiry_type, order_number):
         log_security_event('contact_rejected', 'warning', 'Contact form looked unsafe or spammy', email=email)
         return jsonify({'error': 'Please remove unsupported text and try again.'}), 400
     db = get_db()
+    message_id = str(uuid.uuid4())
     db.execute(
         "INSERT INTO contact_messages (id,name,email,phone,message,inquiry_type,order_number) VALUES (?,?,?,?,?,?,?)",
-        (str(uuid.uuid4()), name, email, phone, message, inquiry_type, order_number)
+        (message_id, name, email, phone, message, inquiry_type, order_number)
     )
     db.commit()
     email_contact_notification(name, email, phone, message, inquiry_type, order_number)
-    return jsonify({'message': 'Message received'})
+    return jsonify({'message': 'Message received', 'reference': message_id[:8].upper()})
 
 
 # ─── Upload ───────────────────────────────────────────────────────────────────

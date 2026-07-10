@@ -777,6 +777,64 @@ tr:hover td { background: var(--bg); }
 }
 .order-success-next i { color: var(--primary); margin-top: 2px; }
 .bulk-order-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 32px; align-items: start; }
+.support-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 24px 0 8px;
+}
+.support-choice-card {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 14px 15px;
+  border: 1px solid #e8e1d5;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(20,40,30,.04);
+  color: var(--text);
+  text-decoration: none;
+}
+.support-choice-card:hover {
+  border-color: rgba(29,92,74,.35);
+  box-shadow: 0 8px 22px rgba(29,92,74,.08);
+  transform: translateY(-1px);
+}
+.support-choice-card i {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  color: var(--primary);
+  background: rgba(29,92,74,.08);
+}
+.support-choice-card strong { display: block; font-size: .9rem; }
+.support-choice-card span { display: block; margin-top: 2px; color: var(--text-light); font-size: .78rem; line-height: 1.4; }
+.support-expectation-card {
+  margin-top: 22px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  border: 1px solid #dbe7e1;
+  background: #f6fbf8;
+}
+.support-expectation-card h3 { margin: 0 0 10px; font-family: Georgia, serif; font-size: 1.05rem; }
+.support-expectation-card ul { margin: 0; padding-left: 18px; color: var(--text-light); line-height: 1.8; font-size: .9rem; }
+.faq-search-box {
+  position: relative;
+  margin-top: 24px;
+}
+.faq-search-box i {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-light);
+  z-index: 1;
+}
+.faq-search-box input { padding-left: 42px; }
 .coupon-row { display: flex; gap: 8px; }
 .coupon-row input { flex: 1; }
 
@@ -1387,6 +1445,8 @@ tr:hover td { background: var(--bg); }
      for the homepage's 5-item (odd) version, so undo it here. */
   .features-strip-4 .feature-item:last-child { grid-column: auto; justify-content: normal; }
   .cart-layout, .checkout-layout, .bulk-order-grid { grid-template-columns: 1fr; }
+  .support-choice-grid { grid-template-columns: 1fr; }
+  .support-choice-card { padding: 13px 14px; }
   .product-detail { grid-template-columns: 1fr; }
   .product-images { position: static; }
   .dashboard-layout { grid-template-columns: 1fr; }
