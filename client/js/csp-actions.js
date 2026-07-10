@@ -96,6 +96,7 @@
     'resetBulkUpload',
     'restoreDrillBackup',
     'refreshSecurityPage',
+    'recoverPendingPaidOrder',
     'reviewLowRiskSecurityEvents',
     'requestBackInStock',
     'saveCoupon',

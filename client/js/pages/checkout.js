@@ -130,6 +130,56 @@ Router.register('/checkout', async () => {
       landmark: document.getElementById('co-landmark').value.trim(),
     };
   }
+  const pendingPaidOrderKey = 'adhya_pending_paid_order';
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+  function rememberPendingPaidOrder(payload) {
+    try {
+      sessionStorage.setItem(pendingPaidOrderKey, JSON.stringify({
+        created_at: new Date().toISOString(),
+        payload,
+      }));
+    } catch {}
+  }
+  function clearPendingPaidOrder() {
+    try { sessionStorage.removeItem(pendingPaidOrderKey); } catch {}
+  }
+  async function postPaidOrderWithRetry(payload, attempts = 3) {
+    let lastError;
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      try {
+        return await api.post('/orders', payload);
+      } catch (err) {
+        lastError = err;
+        if (attempt < attempts) await sleep(700 * attempt);
+      }
+    }
+    throw lastError;
+  }
+  function finishPaidOrder(res) {
+    clearPendingPaidOrder();
+    Cart.clear();
+    sessionStorage.removeItem('cart_coupon_code');
+    Router.navigate(`/order-success?order=${res.order_number}&total=${res.total}`);
+  }
+  window.recoverPendingPaidOrder = async () => {
+    const btn = document.getElementById('recover-paid-order-btn');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving order...';
+    }
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(pendingPaidOrderKey) || '{}');
+      if (!saved.payload?.payment_intent_id) throw new Error('No paid checkout is saved in this browser.');
+      const res = await postPaidOrderWithRetry(saved.payload, 3);
+      finishPaidOrder(res);
+    } catch (err) {
+      showCheckoutMessage(`<strong>We still could not save the paid order from this browser.</strong> ${esc(err.message || 'Please contact support with your checkout email and payment time.')}`, 'error');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-rotate-right"></i> Try saving order again';
+      }
+    }
+  };
 
   app.innerHTML = `
     <div class="page">
@@ -601,7 +651,8 @@ Router.register('/checkout', async () => {
         notes: document.getElementById('co-notes').value,
       };
 
-      const res = await api.post('/orders', payload);
+      rememberPendingPaidOrder(payload);
+      const res = await postPaidOrderWithRetry(payload, 3);
       if (user && document.getElementById('co-save-profile')?.checked) {
         api.put('/user/profile', {
           name: payload.customer_name,
@@ -609,9 +660,7 @@ Router.register('/checkout', async () => {
           address: payload.shipping_address,
         }).catch(() => {});
       }
-      Cart.clear();
-      sessionStorage.removeItem('cart_coupon_code');
-      Router.navigate(`/order-success?order=${res.order_number}&total=${res.total}`);
+      finishPaidOrder(res);
 
     } catch (e) {
       if (paymentCompleted) {
@@ -620,7 +669,18 @@ Router.register('/checkout', async () => {
           btn.disabled = true;
           btn.innerHTML = '<i class="fas fa-headset"></i> Check My Orders or Contact Support';
         }
-        showCheckoutMessage(`<strong>Payment may have completed, so do not submit again from this page.</strong> ${esc(e.message || 'Please check My Orders. If the order is not visible, contact contact@adhyashaktishop.com with your email and checkout time.')}`, 'error');
+        showCheckoutMessage(`
+          <strong>Payment may have completed, so do not submit payment again from this page.</strong>
+          ${esc(e.message || 'Please check My Orders. If the order is not visible, contact contact@adhyashaktishop.com with your email and checkout time.')}
+          <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-sm btn-primary" id="recover-paid-order-btn" data-csp-onclick="recoverPendingPaidOrder()">
+              <i class="fas fa-rotate-right"></i> Try saving order again
+            </button>
+            <a href="/dashboard/orders" data-link class="btn btn-sm btn-outline">
+              <i class="fas fa-box"></i> Check My Orders
+            </a>
+          </div>
+        `, 'error');
         toast('Payment was processed but the order confirmation needs review. Please check My Orders or contact support.', 'error', 7000);
         return;
       }

@@ -1342,6 +1342,7 @@ def init_db():
             phone TEXT,
             user_id TEXT,
             items TEXT NOT NULL DEFAULT '[]',
+            shipping_address TEXT NOT NULL DEFAULT '{}',
             subtotal REAL DEFAULT 0,
             discount REAL DEFAULT 0,
             shipping REAL DEFAULT 0,
@@ -1513,6 +1514,7 @@ def init_db():
         "ALTER TABLE security_events ADD COLUMN reviewed_at TEXT",
         "ALTER TABLE security_events ADD COLUMN reviewed_by TEXT",
         "ALTER TABLE security_events ADD COLUMN review_note TEXT",
+        "ALTER TABLE abandoned_carts ADD COLUMN shipping_address TEXT NOT NULL DEFAULT '{}'",
     ]
     for sql in migrations:
         try:
@@ -2916,7 +2918,7 @@ def get_categories():
 
 # ─── Stripe Payment ───────────────────────────────────────────────────────────
 
-def _capture_abandoned_cart(db, *, email, name, phone, user_id, items, totals, payment_intent_id):
+def _capture_abandoned_cart(db, *, email, name, phone, user_id, items, shipping_address, totals, payment_intent_id):
     """Snapshot a checkout attempt so an unfinished cart can be reminded later.
     Stores minimal item refs (id/qty/variation); product details are looked up
     at send time so the reminder always reflects current names, prices, images."""
@@ -2939,14 +2941,15 @@ def _capture_abandoned_cart(db, *, email, name, phone, user_id, items, totals, p
     db.execute(
         """
         INSERT INTO abandoned_carts
-            (id,email,name,phone,user_id,items,subtotal,discount,shipping,total,
+            (id,email,name,phone,user_id,items,shipping_address,subtotal,discount,shipping,total,
              coupon_code,payment_intent_id,recovery_token,created_at,reminded_at,converted_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),NULL,NULL)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),NULL,NULL)
         ON CONFLICT(email) DO UPDATE SET
             name=excluded.name,
             phone=excluded.phone,
             user_id=COALESCE(excluded.user_id, abandoned_carts.user_id),
             items=excluded.items,
+            shipping_address=excluded.shipping_address,
             subtotal=excluded.subtotal,
             discount=excluded.discount,
             shipping=excluded.shipping,
@@ -2958,7 +2961,7 @@ def _capture_abandoned_cart(db, *, email, name, phone, user_id, items, totals, p
             reminded_at=NULL,
             converted_at=NULL
         """,
-        (str(uuid.uuid4()), email, name, phone, user_id, json.dumps(refs),
+        (str(uuid.uuid4()), email, name, phone, user_id, json.dumps(refs), json.dumps(shipping_address or {}),
          float(totals.get('subtotal') or 0), float(totals.get('discount') or 0),
          float(totals.get('shipping') or 0), float(totals.get('total') or 0),
          totals.get('coupon_code') or '', payment_intent_id, uuid.uuid4().hex)
@@ -3025,7 +3028,7 @@ def create_payment_intent():
         try:
             _capture_abandoned_cart(
                 db, email=customer_email, name=customer_name, phone=customer_phone,
-                user_id=customer_user_id, items=data.get('items'),
+                user_id=customer_user_id, items=data.get('items'), shipping_address=shipping_address,
                 totals=totals, payment_intent_id=intent['id'],
             )
         except Exception as _cap_exc:
@@ -3576,7 +3579,22 @@ def create_order():
         return jsonify({'error': 'Payment is required to place an order.'}), 400
     db = get_db()
     user_id = current_customer_id_from_request(db)
-    if db.execute("SELECT id FROM orders WHERE payment_intent_id=?", (payment_intent_id,)).fetchone():
+    existing_payment_order = row_to_dict(db.execute(
+        "SELECT id,order_number,user_id,customer_email,total,discount FROM orders WHERE payment_intent_id=?",
+        (payment_intent_id,)
+    ).fetchone())
+    if existing_payment_order:
+        if (
+            existing_payment_order.get('customer_email') == customer_email
+            or (user_id and existing_payment_order.get('user_id') == user_id)
+        ):
+            return jsonify({
+                'id': existing_payment_order.get('id'),
+                'order_number': existing_payment_order.get('order_number'),
+                'total': existing_payment_order.get('total'),
+                'discount': existing_payment_order.get('discount') or 0,
+                'recovered': True,
+            })
         log_security_event(
             'payment_reuse_blocked',
             'critical',
@@ -3665,8 +3683,23 @@ def create_order():
 
     try:
         db.execute("BEGIN IMMEDIATE")
-        if db.execute("SELECT id FROM orders WHERE payment_intent_id=?", (payment_intent_id,)).fetchone():
+        existing_payment_order = row_to_dict(db.execute(
+            "SELECT id,order_number,user_id,customer_email,total,discount FROM orders WHERE payment_intent_id=?",
+            (payment_intent_id,)
+        ).fetchone())
+        if existing_payment_order:
             db.rollback()
+            if (
+                existing_payment_order.get('customer_email') == customer_email
+                or (user_id and existing_payment_order.get('user_id') == user_id)
+            ):
+                return jsonify({
+                    'id': existing_payment_order.get('id'),
+                    'order_number': existing_payment_order.get('order_number'),
+                    'total': existing_payment_order.get('total'),
+                    'discount': existing_payment_order.get('discount') or 0,
+                    'recovered': True,
+                })
             log_security_event(
                 'payment_reuse_blocked',
                 'critical',
