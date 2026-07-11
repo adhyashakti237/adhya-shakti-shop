@@ -5072,6 +5072,35 @@ def google_shopping_feed():
         """SELECT id,name,description,price,compare_price,sku,stock,images,category_id
            FROM products WHERE IFNULL(is_active,1)=1 ORDER BY created_at DESC LIMIT 1000"""
     ).fetchall()
+    variants_by_product = {}
+    try:
+        for v in db.execute("SELECT product_id,color,size,stock FROM product_variants").fetchall():
+            variants_by_product.setdefault(v['product_id'], []).append(v)
+    except Exception:
+        variants_by_product = {}
+
+    # Google's apparel color names, checked against name+description. Order matters:
+    # multi-word tones must match before their single-word substrings (rose gold vs gold).
+    _FEED_COLOR_KEYWORDS = [
+        ('rose gold', 'Rose Gold'), ('antique gold', 'Gold'), ('oxidized', 'Silver'),
+        ('oxidised', 'Silver'), ('silver', 'Silver'), ('golden', 'Gold'), ('gold', 'Gold'),
+        ('pearl', 'White'), ('white', 'White'), ('black', 'Black'), ('navy', 'Blue'),
+        ('turquoise', 'Turquoise'), ('teal', 'Teal'), ('blue', 'Blue'), ('green', 'Green'),
+        ('maroon', 'Red'), ('red', 'Red'), ('pink', 'Pink'), ('purple', 'Purple'),
+        ('violet', 'Purple'), ('yellow', 'Yellow'), ('orange', 'Orange'), ('brown', 'Brown'),
+        ('beige', 'Beige'), ('grey', 'Gray'), ('gray', 'Gray'), ('multicolor', 'Multicolor'),
+        ('multi-color', 'Multicolor'), ('multicolour', 'Multicolor'),
+    ]
+
+    def derive_colors(*texts):
+        low = ' '.join(str(t or '') for t in texts).lower()
+        found = []
+        for kw, color in _FEED_COLOR_KEYWORDS:
+            if kw in low and color not in found:
+                found.append(color)
+            if len(found) == 3:  # Google allows at most 3 slash-separated colors
+                break
+        return '/'.join(found) if found else 'Multicolor'
 
     def x(v):
         return escape(str(v if v is not None else ''), quote=True)
@@ -5101,35 +5130,62 @@ def google_shopping_feed():
         avail = 'in_stock' if int(r['stock'] or 0) > 0 else 'out_of_stock'
         cat_name = cat_names.get(r['category_id'], '')
         low = ('%s %s' % (cat_name, name)).lower()
-        gcat = ('Apparel & Accessories > Clothing'
-                if any(k in low for k in ('shirt', 'hoodie', 'cloth', 'apparel', 'co-ord', 'polo', 'tee'))
+        is_clothing = any(k in low for k in ('shirt', 'hoodie', 'cloth', 'apparel', 'co-ord', 'polo', 'tee'))
+        gcat = ('Apparel & Accessories > Clothing' if is_clothing
                 else 'Apparel & Accessories > Jewelry')
-        p = ['    <item>',
-             '      <g:id>%s</g:id>' % x(r['id']),
-             '      <g:title>%s</g:title>' % x(name),
-             '      <g:description>%s</g:description>' % x(desc),
-             '      <g:link>%s/product/%s</g:link>' % (base, x(r['id'])),
-             '      <g:image_link>%s</g:image_link>' % x(abs_img(images[0]))]
-        for im in images[1:11]:
-            p.append('      <g:additional_image_link>%s</g:additional_image_link>' % x(abs_img(im)))
-        p.append('      <g:availability>%s</g:availability>' % avail)
-        p.append('      <g:condition>new</g:condition>')
-        if compare > price:
-            p.append('      <g:price>%.2f USD</g:price>' % compare)
-            p.append('      <g:sale_price>%.2f USD</g:sale_price>' % price)
-        else:
-            p.append('      <g:price>%.2f USD</g:price>' % price)
-        p.append('      <g:brand>Adhya Shakti Shop</g:brand>')
+        gender = 'unisex' if is_clothing else 'female'
         sku = (r['sku'] or '').strip()
-        if sku:
-            p.append('      <g:mpn>%s</g:mpn>' % x(sku))
+
+        def emit(item_id, title, availability, color, size=None, group_id=None):
+            p = ['    <item>',
+                 '      <g:id>%s</g:id>' % x(item_id),
+                 '      <g:title>%s</g:title>' % x(title[:150]),
+                 '      <g:description>%s</g:description>' % x(desc),
+                 '      <g:link>%s/product/%s</g:link>' % (base, x(r['id'])),
+                 '      <g:image_link>%s</g:image_link>' % x(abs_img(images[0]))]
+            for im in images[1:11]:
+                p.append('      <g:additional_image_link>%s</g:additional_image_link>' % x(abs_img(im)))
+            p.append('      <g:availability>%s</g:availability>' % availability)
+            p.append('      <g:condition>new</g:condition>')
+            if compare > price:
+                p.append('      <g:price>%.2f USD</g:price>' % compare)
+                p.append('      <g:sale_price>%.2f USD</g:sale_price>' % price)
+            else:
+                p.append('      <g:price>%.2f USD</g:price>' % price)
+            p.append('      <g:brand>Adhya Shakti Shop</g:brand>')
+            if sku:
+                p.append('      <g:mpn>%s</g:mpn>' % x(sku))
+            else:
+                p.append('      <g:identifier_exists>no</g:identifier_exists>')
+            p.append('      <g:google_product_category>%s</g:google_product_category>' % x(gcat))
+            if cat_name:
+                p.append('      <g:product_type>%s</g:product_type>' % x(cat_name))
+            # color / gender / age_group are required for Apparel & Accessories items
+            # (jewelry included) in US-targeted feeds; size additionally for clothing.
+            p.append('      <g:color>%s</g:color>' % x(color))
+            p.append('      <g:gender>%s</g:gender>' % gender)
+            p.append('      <g:age_group>adult</g:age_group>')
+            if size:
+                p.append('      <g:size>%s</g:size>' % x(size))
+            if group_id:
+                p.append('      <g:item_group_id>%s</g:item_group_id>' % x(group_id))
+            p.append('    </item>')
+            items.append('\n'.join(p))
+
+        variants = variants_by_product.get(r['id']) or []
+        if variants:
+            # One feed item per color/size, sharing an item_group_id (Google's
+            # required structure for apparel variants). g:id stays under Google's
+            # 50-char limit via a short deterministic hash of the variant.
+            for v in variants:
+                color = clean_text(v['color'], 60) or derive_colors(name, r['description'])
+                size = clean_text(v['size'], 40)
+                suffix = hashlib.md5(f"{color}|{size}".encode()).hexdigest()[:8]
+                v_avail = 'in_stock' if int(v['stock'] or 0) > 0 else 'out_of_stock'
+                title = name if not (color or size) else f"{name} ({', '.join(t for t in (color, size) if t)})"
+                emit(f"{r['id']}-{suffix}", title, v_avail, color, size=size or None, group_id=r['id'])
         else:
-            p.append('      <g:identifier_exists>no</g:identifier_exists>')
-        p.append('      <g:google_product_category>%s</g:google_product_category>' % x(gcat))
-        if cat_name:
-            p.append('      <g:product_type>%s</g:product_type>' % x(cat_name))
-        p.append('    </item>')
-        items.append('\n'.join(p))
+            emit(r['id'], name, avail, derive_colors(name, r['description']))
 
     xml = ('<?xml version="1.0" encoding="UTF-8"?>\n'
            '<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">\n'
