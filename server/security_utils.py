@@ -9,9 +9,12 @@ SAFE_ATTACHMENT_EXTENSIONS = SAFE_IMAGE_EXTENSIONS | {'.pdf'}
 PUBLIC_UPLOAD_MAX_BYTES = 6 * 1024 * 1024
 PRIVATE_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
 
+PUBLIC_UPLOAD_FILENAME_RE = re.compile(
+    r'^[A-Za-z0-9][A-Za-z0-9._-]{0,180}\.(?:jpe?g|png|webp)$',
+    re.IGNORECASE,
+)
 PUBLIC_UPLOAD_RE = re.compile(
-    r'^/uploads/(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})'
-    r'\.(?:jpe?g|png|webp)$',
+    r'^/uploads/[A-Za-z0-9][A-Za-z0-9._-]{0,180}\.(?:jpe?g|png|webp)$',
     re.IGNORECASE,
 )
 STORED_FILE_RE = re.compile(
@@ -155,6 +158,13 @@ def random_stored_name(ext):
 
 def is_safe_public_upload_url(url):
     return bool(PUBLIC_UPLOAD_RE.fullmatch(clean_text(url, 260)))
+
+
+def is_safe_public_upload_filename(filename):
+    text = clean_text(filename, 220)
+    if not text or text != os.path.basename(text) or '/' in text or '\\' in text:
+        return False
+    return bool(PUBLIC_UPLOAD_FILENAME_RE.fullmatch(text))
 
 
 def is_safe_static_image_url(url):

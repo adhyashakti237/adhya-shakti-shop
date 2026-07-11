@@ -32,6 +32,7 @@ from security_utils import (
     UploadSecurityError,
     clean_text,
     is_safe_public_upload_url,
+    is_safe_public_upload_filename,
     is_safe_static_image_url,
     is_safe_stored_filename,
     random_stored_name,
@@ -814,12 +815,56 @@ _STATUS_COPY = {
     'refunded':         ('Refund Processed', 'Your refund has been issued. It normally appears on your card within 5-7 business days, depending on your bank.'),
 }
 
+_STATUS_NEXT_STEPS = {
+    'processing': [
+        'We are preparing your item(s) for shipment.',
+        'You will receive another email when tracking is available.',
+        'If something looks wrong, contact us before the order ships.',
+    ],
+    'shipped': [
+        'Use the tracking number below to follow the package.',
+        'Carrier tracking can take a little time to update after the first scan.',
+        'Contact us if the package does not move for several business days.',
+    ],
+    'delivered': [
+        'Please check the package and item(s) when you receive them.',
+        'If anything arrived damaged or incorrect, contact us quickly with your order number.',
+        'Your review helps other shoppers once everything looks good.',
+    ],
+    'cancelled': [
+        'Your order will not be shipped.',
+        'Stock has been returned to inventory when applicable.',
+        'If payment was captured, refund timing depends on your bank after processing.',
+    ],
+    'return_requested': [
+        'Please ship the package back within 7 business days.',
+        'Keep your shipping receipt until the return is complete.',
+        'Refund review starts after we receive and inspect the returned item(s).',
+    ],
+    'return_received': [
+        'We received the returned package.',
+        'We will inspect the item(s) and complete the refund review.',
+        'We will email you again when the refund status changes.',
+    ],
+    'refunded': [
+        'The refund was issued to the original payment method.',
+        'Most banks show refunds within 5-7 business days.',
+        'Contact your bank if the refund does not appear after that window.',
+    ],
+}
+
 
 def email_order_status(order_num, customer_name, customer_email, status, tracking_number=None):
     copy = _STATUS_COPY.get(status)
     if not copy:
         return
     subject_line, body_text = copy
+    steps = _STATUS_NEXT_STEPS.get(status, [])
+    next_steps = (f"""
+<h3>What happens next</h3>
+<ul style="padding-left:18px;line-height:1.7;margin-top:8px">
+  {''.join(f'<li>{h(step)}</li>' for step in steps)}
+</ul>""" if steps else '')
     tracking_panel = (f"""
 <div class="note">
   <strong>Tracking number:</strong> {h(tracking_number)}<br>
@@ -834,6 +879,7 @@ def email_order_status(order_num, customer_name, customer_email, status, trackin
 </div>
 {tracking_panel}
 <p>{body_text}</p>
+{next_steps}
 <div style="text-align:center;margin:24px 0 8px">
   <a href="https://adhyashaktishop.com/dashboard" class="cta">View My Orders</a>
   <a href="https://adhyashaktishop.com/track-order" class="cta secondary" style="margin-left:8px">Track Order</a>
@@ -4912,14 +4958,38 @@ def sitemap():
         ('/refund', '0.4', 'monthly'),
     ]
     today = datetime.datetime.utcnow().strftime('%Y-%m-%d')
+    def abs_img(url):
+        text = str(url or '').strip()
+        if not text:
+            return ''
+        if text.startswith('http://') or text.startswith('https://'):
+            return text
+        if text.startswith('/'):
+            return base + text
+        return ''
+
     entries = [
-        (f'{base}{p}', today, freq, pri)
+        {'loc': f'{base}{p}', 'lastmod': today, 'freq': freq, 'pri': pri, 'images': []}
         for p, pri, freq in pages
     ]
     try:
         db = get_db()
-        for row in db.execute("SELECT id,created_at AS lastmod FROM products WHERE is_active=1 ORDER BY created_at DESC LIMIT 500").fetchall():
-            entries.append((f'{base}/product/{row["id"]}', (row['lastmod'] or today)[:10], 'weekly', '0.8'))
+        for row in db.execute("SELECT id,name,created_at AS lastmod,images FROM products WHERE is_active=1 ORDER BY created_at DESC LIMIT 500").fetchall():
+            images = []
+            try:
+                for img in json.loads(row['images'] or '[]')[:4]:
+                    img_url = abs_img(img)
+                    if img_url:
+                        images.append({'loc': img_url, 'title': row['name'] or 'Adhya Shakti Shop product'})
+            except Exception:
+                images = []
+            entries.append({
+                'loc': f'{base}/product/{row["id"]}',
+                'lastmod': (row['lastmod'] or today)[:10],
+                'freq': 'weekly',
+                'pri': '0.8',
+                'images': images,
+            })
         for row in db.execute("""
             SELECT id,created_at AS lastmod
             FROM categories
@@ -4928,15 +4998,37 @@ def sitemap():
             ORDER BY created_at DESC
             LIMIT 200
         """).fetchall():
-            entries.append((f'{base}/products?category={row["id"]}', (row['lastmod'] or today)[:10], 'weekly', '0.6'))
+            entries.append({
+                'loc': f'{base}/products?category={row["id"]}',
+                'lastmod': (row['lastmod'] or today)[:10],
+                'freq': 'weekly',
+                'pri': '0.6',
+                'images': [],
+            })
     except Exception as exc:
         app.logger.warning('dynamic sitemap entries failed: %s', exc)
+
+    def image_xml(images):
+        return ''.join(
+            '<image:image>'
+            f'<image:loc>{escape(str(img["loc"]), quote=True)}</image:loc>'
+            f'<image:title>{escape(str(img.get("title") or "Adhya Shakti Shop product"), quote=True)}</image:title>'
+            '</image:image>'
+            for img in (images or [])
+        )
+
     urls = '\n'.join(
-        f'  <url><loc>{escape(str(loc), quote=True)}</loc><lastmod>{escape(str(lastmod), quote=True)}</lastmod>'
-        f'<changefreq>{escape(str(freq), quote=True)}</changefreq><priority>{escape(str(pri), quote=True)}</priority></url>'
-        for loc, lastmod, freq, pri in entries
+        f'  <url><loc>{escape(str(e["loc"]), quote=True)}</loc><lastmod>{escape(str(e["lastmod"]), quote=True)}</lastmod>'
+        f'<changefreq>{escape(str(e["freq"]), quote=True)}</changefreq><priority>{escape(str(e["pri"]), quote=True)}</priority>'
+        f'{image_xml(e.get("images"))}</url>'
+        for e in entries
     )
-    xml = f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n{urls}\n</urlset>'
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" '
+        'xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n'
+        f'{urls}\n</urlset>'
+    )
     return Response(xml, mimetype='application/xml')
 
 
@@ -7366,7 +7458,7 @@ def upload_file():
 
 @app.route('/uploads/<filename>')
 def serve_upload(filename):
-    if not is_safe_stored_filename(filename) or not is_safe_public_upload_url(f'/uploads/{filename}'):
+    if not is_safe_public_upload_filename(filename) or not is_safe_public_upload_url(f'/uploads/{filename}'):
         abort(404)
     ext = os.path.splitext(filename)[1].lower()
     mimetype = {
@@ -7376,7 +7468,13 @@ def serve_upload(filename):
         '.webp': 'image/webp',
     }.get(ext, 'application/octet-stream')
     resp = send_from_directory(UPLOAD_FOLDER, filename, mimetype=mimetype)
-    return secure_upload_headers(resp)
+    resp = secure_upload_headers(resp)
+    # Public upload filenames are random immutable names. Browser-private caching
+    # speeds product/review images up while avoiding shared proxy/CDN storage for
+    # any customer-provided custom-print artwork that also lives under /uploads.
+    resp.headers['Cache-Control'] = 'private, max-age=604800'
+    resp.headers.pop('Pragma', None)
+    return resp
 
 
 # ─── SPA Fallback ─────────────────────────────────────────────────────────────

@@ -770,6 +770,18 @@ Router.register('/faq', () => {
     icon.style.transform = open ? '' : 'rotate(180deg)';
     btn.setAttribute('aria-expanded', open ? 'false' : 'true');
   };
+  const faqSchema = document.createElement('script');
+  faqSchema.type = 'application/ld+json';
+  faqSchema.textContent = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map(f => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: { '@type': 'Answer', text: f.a },
+    })),
+  });
+  document.head.appendChild(faqSchema);
 });
 
 Router.register('/track-order', () => {
@@ -830,6 +842,7 @@ Router.register('/track-order', () => {
             <div class="alert alert-info" style="margin:0"><strong>${esc(order.status.replace(/_/g,' '))}:</strong> ${esc(statusText)} Need help? Contact contact@adhyashaktishop.com with your order number.</div>
             ${typeof accountOrderTrackingPanel === 'function' ? accountOrderTrackingPanel(order) : ''}
             ${typeof accountReturnReasonHtml === 'function' ? accountReturnReasonHtml(order) : ''}
+            ${typeof accountCancellationDetailsHtml === 'function' ? accountCancellationDetailsHtml(order) : ''}
             <div class="grid-2" style="gap:12px;font-size:.9rem">
               <div><span style="color:var(--text-light)">Placed on</span><br><strong>${new Date(order.created_at).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</strong></div>
               <div><span style="color:var(--text-light)">Total</span><br><strong>${fmt(order.total)}</strong></div>

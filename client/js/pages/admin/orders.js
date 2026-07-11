@@ -353,19 +353,31 @@ Router.register('/admin/orders', async () => {
       </div>`;
   }
 
+  function syncOrderUrl() {
+    const params = new URLSearchParams();
+    if (filterStatus) params.set('status', filterStatus);
+    if (viewMode) params.set('view', viewMode);
+    if (searchTerm) params.set('q', searchTerm);
+    const qs = params.toString();
+    history.replaceState(null, '', `/admin/orders${qs ? '?' + qs : ''}`);
+  }
+
   window.changeStatusFilter = (s) => {
     filterStatus = s;
     viewMode = '';
+    syncOrderUrl();
     loadOrders();
   };
   window.setOrderView = (mode) => {
     viewMode = mode || '';
+    syncOrderUrl();
     renderOrders();
   };
   window.searchAdminOrders = () => {
     const input = document.getElementById('admin-order-search');
     const caret = input?.selectionStart ?? String(input?.value || '').length;
     searchTerm = (input?.value || '').toLowerCase().trim();
+    syncOrderUrl();
     renderOrders();
     const next = document.getElementById('admin-order-search');
     if (next) {
@@ -404,11 +416,21 @@ Router.register('/admin/orders', async () => {
 
   window.copyOrderValue = async (id, field) => {
     const o = orders.find(x => x.id === id);
-    const value = field === 'phone' ? (o?.customer_phone || '') : (o?.customer_email || '');
-    if (!value) { toast(`${field === 'phone' ? 'Phone' : 'Email'} is missing`, 'warning'); return; }
+    const value = field === 'summary'
+      ? [
+          `Order: ${o?.order_number || ''}`,
+          `Customer: ${o?.customer_name || ''}`,
+          `Email: ${o?.customer_email || ''}`,
+          `Phone: ${o?.customer_phone || ''}`,
+          `Status: ${(o?.status || '').replace(/_/g, ' ')}`,
+          `Payment: ${(o?.payment_status || '').replace(/_/g, ' ')}`,
+          `Total: ${fmt(o?.total || 0)}`,
+        ].join('\n')
+      : field === 'phone' ? (o?.customer_phone || '') : (o?.customer_email || '');
+    if (!value) { toast(`${field === 'phone' ? 'Phone' : field === 'summary' ? 'Summary' : 'Email'} is missing`, 'warning'); return; }
     try {
       await navigator.clipboard.writeText(value);
-      toast(`${field === 'phone' ? 'Phone' : 'Email'} copied`, 'success');
+      toast(`${field === 'phone' ? 'Phone' : field === 'summary' ? 'Order summary' : 'Email'} copied`, 'success');
     } catch {
       toast(value, 'info');
     }
@@ -568,6 +590,7 @@ Router.register('/admin/orders', async () => {
         <div class="mt-16" style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-outline" data-csp-onclick="printPackingSlip('${o.id}')"><i class="fas fa-box-open"></i> Packing slip</button>
           <button class="btn btn-outline" data-csp-onclick="printAdminInvoice('${o.id}')"><i class="fas fa-file-invoice"></i> Invoice</button>
+          <button class="btn btn-outline" data-csp-onclick="copyOrderValue('${o.id}','summary')"><i class="fas fa-copy"></i> Copy summary</button>
           <button class="btn btn-outline" data-csp-onclick="sendOrderEmail('${o.id}','confirmation')"><i class="fas fa-envelope"></i> Resend confirmation</button>
           <button class="btn btn-outline" data-csp-onclick="sendOrderEmail('${o.id}','status')"><i class="fas fa-paper-plane"></i> Send status</button>
           ${o.status === 'delivered' ? `<button class="btn btn-outline" data-csp-onclick="sendOrderEmail('${o.id}','review')"><i class="fas fa-star"></i> Request review</button>` : ''}

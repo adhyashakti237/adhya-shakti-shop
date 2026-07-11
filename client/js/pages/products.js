@@ -138,11 +138,15 @@ Router.register('/products', async (params) => {
 
   function updateProductListJsonLd(products) {
     document.getElementById('products-list-jsonld')?.remove();
+    document.getElementById('products-page-jsonld')?.remove();
     if (!products || !products.length) return;
+    const cat = selectedCategory();
+    const pageName = cat?.path_label || (currentSearch ? `Search results for ${currentSearch}` : 'Adhya Shakti Shop products');
+    const pageUrl = absoluteUrl(cat ? `/products?category=${encodeURIComponent(cat.id)}` : '/products');
     const itemList = {
       '@context': 'https://schema.org',
       '@type': 'ItemList',
-      name: selectedCategory()?.path_label || (currentSearch ? `Search results for ${currentSearch}` : 'Adhya Shakti Shop products'),
+      name: pageName,
       itemListElement: products.slice(0, 12).map((p, idx) => ({
         '@type': 'ListItem',
         position: idx + 1,
@@ -155,6 +159,45 @@ Router.register('/products', async (params) => {
     script.id = 'products-list-jsonld';
     script.textContent = JSON.stringify(itemList);
     document.head.appendChild(script);
+
+    const crumbs = [
+      { name: 'Home', item: absoluteUrl('/') },
+      { name: 'Products', item: absoluteUrl('/products') },
+    ];
+    if (cat) {
+      const names = cat.path_names || [cat.name];
+      names.forEach((name, idx) => {
+        const label = names.slice(0, idx + 1).join(' / ');
+        const found = allCats.find(c => c.path_label === label);
+        crumbs.push({ name, item: absoluteUrl(found ? `/products?category=${encodeURIComponent(found.id)}` : `/products?category=${encodeURIComponent(cat.id)}`) });
+      });
+    }
+    const pageSchema = {
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'CollectionPage',
+          name: pageName,
+          url: pageUrl,
+          description: cleanText(document.getElementById('products-subtitle')?.textContent || 'Browse products at Adhya Shakti Shop.'),
+          isPartOf: { '@type': 'WebSite', name: 'Adhya Shakti Shop', url: absoluteUrl('/') },
+        },
+        {
+          '@type': 'BreadcrumbList',
+          itemListElement: crumbs.map((c, idx) => ({
+            '@type': 'ListItem',
+            position: idx + 1,
+            name: c.name,
+            item: c.item,
+          })),
+        },
+      ],
+    };
+    const pageScript = document.createElement('script');
+    pageScript.type = 'application/ld+json';
+    pageScript.id = 'products-page-jsonld';
+    pageScript.textContent = JSON.stringify(pageSchema);
+    document.head.appendChild(pageScript);
   }
 
   function categoryGroups() {

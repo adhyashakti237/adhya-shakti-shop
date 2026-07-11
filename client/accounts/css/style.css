@@ -304,3 +304,11 @@ textarea{min-height:78px;resize:vertical}
 .barrow .bv{font-size:13.5px;font-weight:600;white-space:nowrap;text-align:right}
 .barrow .bv small{display:block;font-size:11px;font-weight:400;color:var(--green-ok)}
 .exp-btns{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.report-wide td:first-child{min-width:220px}
+.report-wide .small{white-space:normal}
+@media(max-width:640px){
+  .report-wide thead,.report-wide tbody{min-width:680px}
+  .seg-control{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+  .seg-control::-webkit-scrollbar{display:none}
+  .seg-control .seg{flex:0 0 auto}
+}

@@ -182,6 +182,7 @@ Router.register('/product/:id', async (params) => {
                 <div class="main-img-track" id="main-img-track">
                   ${imgs.map((im, i) => `<div class="main-img-slide"><img src="${im}" alt="${esc(p.name)} product image ${i + 1}" loading="${i === 0 ? 'eager' : 'lazy'}" decoding="async" fetchpriority="${i === 0 ? 'high' : 'auto'}" width="500" height="500" data-csp-onerror="this.src='https://placehold.co/500x500/f5f5f5/999?text=No+Image'" /></div>`).join('')}
                 </div>
+                <div class="product-image-hint"><i class="fas fa-magnifying-glass-plus"></i> Tap image to zoom${imgs.length > 1 ? ' · Swipe for more' : ''}</div>
                 ${imgs.length > 1 ? `
                   <button class="main-img-arrow prev" id="main-img-prev" aria-label="Previous image"><i class="fas fa-chevron-left"></i></button>
                   <button class="main-img-arrow next" id="main-img-next" aria-label="Next image"><i class="fas fa-chevron-right"></i></button>
@@ -255,6 +256,10 @@ Router.register('/product/:id', async (params) => {
               <!-- Stock status -->
               <div id="variant-stock-info" style="margin-bottom:16px;font-size:.88rem;color:var(--text-light)">
                 <i class="fas fa-info-circle" style="color:var(--primary);margin-right:6px"></i>Select a color to check size availability.
+              </div>
+              <div id="variant-selection-summary" class="variant-selection-summary">
+                <span><i class="fas fa-palette"></i> Color: <strong>Not selected</strong></span>
+                <span><i class="fas fa-ruler"></i> Size: <strong>Not selected</strong></span>
               </div>
               ` : `
               <!-- Simple stock display (no variants) -->
@@ -335,8 +340,8 @@ Router.register('/product/:id', async (params) => {
               <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap">
                 ${unavailable
                   ? `<button class="btn btn-lg" disabled style="background:#eee;color:#999;border:1px solid #ddd;cursor:not-allowed;opacity:1"><i class="fas fa-clock"></i> Out of Stock</button>`
-                  : `<button class="btn btn-primary btn-lg" id="atc-btn" data-csp-onclick="addToCartDetail()"><i class="fas fa-cart-plus"></i> Add to Cart</button>
-                     <button class="btn btn-secondary btn-lg" data-csp-onclick="buyNow()"><i class="fas fa-bolt"></i> Buy Now</button>`}
+                  : `<button class="btn btn-primary btn-lg" id="atc-btn" data-csp-onclick="addToCartDetail()"><i class="fas fa-cart-plus"></i> ${hasVariants ? 'Select Color & Size' : 'Add to Cart'}</button>
+                     <button class="btn btn-secondary btn-lg" id="buy-now-btn" data-csp-onclick="buyNow()"><i class="fas fa-bolt"></i> ${hasVariants ? 'Select Options' : 'Buy Now'}</button>`}
                 <button class="btn btn-outline btn-lg ${Wishlist.has(p.id) ? 'wishlisted' : ''}"
                   id="wishlist-btn" data-wid="${esc(p.id)}" data-wp-enc="${wData}"
                   data-csp-onclick="Wishlist.toggleDetail()" aria-label="Save to wishlist">
@@ -472,11 +477,11 @@ Router.register('/product/:id', async (params) => {
     stickyBar.innerHTML = `
       <div style="min-width:0;flex:1">
         <div style="font-weight:700;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
-        <div style="font-size:.88rem;color:var(--primary);font-weight:700">${fmt(p.price)}${hasVariants ? ' · Select color & size' : ''}</div>
+        <div id="sticky-atc-subtitle" style="font-size:.88rem;color:var(--primary);font-weight:700">${fmt(p.price)}${hasVariants ? ' · Select color & size' : ''}</div>
       </div>
       ${unavailable
         ? `<button class="btn btn-lg" disabled style="background:#eee;color:#999;border:1px solid #ddd;cursor:not-allowed">Out of Stock</button>`
-        : `<button class="btn btn-primary btn-lg" id="sticky-atc-btn" data-csp-onclick="addToCartDetail()"><i class="fas fa-cart-plus"></i> Add to Cart</button>`}`;
+        : `<button class="btn btn-primary btn-lg" id="sticky-atc-btn" data-csp-onclick="addToCartDetail()"><i class="fas fa-cart-plus"></i> ${hasVariants ? 'Select Options' : 'Add to Cart'}</button>`}`;
     document.body.appendChild(stickyBar);
 
     const purchaseControls = document.getElementById('atc-btn')?.closest('div') || document.querySelector('.product-detail-info');
@@ -504,11 +509,38 @@ Router.register('/product/:id', async (params) => {
       ...(p.sku ? { sku: String(p.sku) } : {}),
       offers: {
         '@type': 'Offer',
+        url: absoluteSiteUrl(location.pathname),
         priceCurrency: 'USD',
         price: p.price,
         availability: 'https://schema.org/' + (unavailable ? 'OutOfStock' : 'InStock'),
         itemCondition: 'https://schema.org/NewCondition',
         seller: { '@type': 'Organization', name: 'Adhya Shakti Shop' },
+        priceValidUntil: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().slice(0, 10),
+        shippingDetails: {
+          '@type': 'OfferShippingDetails',
+          shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'US' },
+          deliveryTime: {
+            '@type': 'ShippingDeliveryTime',
+            handlingTime: { '@type': 'QuantitativeValue', minValue: 2, maxValue: 3, unitCode: 'DAY' },
+          },
+        },
+        hasMerchantReturnPolicy: {
+          '@type': 'MerchantReturnPolicy',
+          applicableCountry: 'US',
+          returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+          merchantReturnDays: 15,
+          returnMethod: 'https://schema.org/ReturnByMail',
+          returnFees: 'https://schema.org/ReturnShippingFees',
+        },
+      },
+      breadcrumb: {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: absoluteSiteUrl('/') },
+          { '@type': 'ListItem', position: 2, name: 'Products', item: absoluteSiteUrl('/products') },
+          ...(p.category_id ? [{ '@type': 'ListItem', position: 3, name: p.category_name || 'Category', item: absoluteSiteUrl(`/products?category=${encodeURIComponent(p.category_id)}`) }] : []),
+          { '@type': 'ListItem', position: p.category_id ? 4 : 3, name: p.name, item: absoluteSiteUrl(location.pathname) },
+        ],
       },
       ...(p.reviews?.length ? {
         aggregateRating: {
@@ -610,17 +642,47 @@ Router.register('/product/:id', async (params) => {
 
     // ── Variant selection state ───────────────────────────────────────────────
     let selectedColor = null, selectedSize = null;
-    const setPurchaseEnabled = (enabled) => {
-      ['atc-btn', 'sticky-atc-btn'].forEach(id => {
-        const btn = document.getElementById(id);
-        if (btn) btn.disabled = !enabled;
-      });
+    const setButtonState = (id, enabled, label, icon) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.disabled = !enabled;
+      btn.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+      btn.innerHTML = `<i class="fas ${icon}"></i> ${label}`;
+    };
+    const updateVariantSummary = () => {
+      const summary = document.getElementById('variant-selection-summary');
+      if (!summary) return;
+      summary.innerHTML = `
+        <span class="${selectedColor ? 'selected' : ''}"><i class="fas fa-palette"></i> Color: <strong>${esc(selectedColor || 'Not selected')}</strong></span>
+        <span class="${selectedSize ? 'selected' : ''}"><i class="fas fa-ruler"></i> Size: <strong>${esc(selectedSize || 'Not selected')}</strong></span>`;
     };
     const syncPurchaseState = () => {
-      if (unavailable) { setPurchaseEnabled(false); return; }
-      if (!hasVariants) { setPurchaseEnabled(true); return; }
+      if (unavailable) {
+        setButtonState('atc-btn', false, 'Out of Stock', 'fa-clock');
+        setButtonState('buy-now-btn', false, 'Out of Stock', 'fa-clock');
+        setButtonState('sticky-atc-btn', false, 'Out of Stock', 'fa-clock');
+        return;
+      }
+      if (!hasVariants) {
+        setButtonState('atc-btn', true, 'Add to Cart', 'fa-cart-plus');
+        setButtonState('buy-now-btn', true, 'Buy Now', 'fa-bolt');
+        setButtonState('sticky-atc-btn', true, 'Add to Cart', 'fa-cart-plus');
+        return;
+      }
       const stock = selectedColor && selectedSize ? (variantMap[selectedColor]?.[selectedSize] || 0) : 0;
-      setPurchaseEnabled(selectedColor && selectedSize ? stock > 0 : true);
+      const ready = !!(selectedColor && selectedSize && stock > 0);
+      const prompt = !selectedColor ? 'Select Color' : !selectedSize ? 'Select Size' : 'Unavailable';
+      const icon = ready ? 'fa-cart-plus' : 'fa-circle-info';
+      setButtonState('atc-btn', ready, ready ? 'Add to Cart' : prompt, icon);
+      setButtonState('buy-now-btn', ready, ready ? 'Buy Now' : 'Select Options', ready ? 'fa-bolt' : 'fa-circle-info');
+      setButtonState('sticky-atc-btn', ready, ready ? 'Add to Cart' : prompt, icon);
+      const stickySub = document.getElementById('sticky-atc-subtitle');
+      if (stickySub) {
+        stickySub.textContent = ready
+          ? `${fmt(p.price)} · ${selectedColor} / ${selectedSize}`
+          : `${fmt(p.price)} · ${!selectedColor ? 'Select color' : 'Select size'}`;
+      }
+      updateVariantSummary();
     };
 
     const renderSizeOptions = (color = null) => {
@@ -672,6 +734,7 @@ Router.register('/product/:id', async (params) => {
       document.getElementById('variant-stock-info').innerHTML =
         `<i class="fas fa-info-circle" style="color:var(--primary);margin-right:6px"></i>Select a size for ${esc(color)}. Unavailable sizes are greyed out.`;
       document.getElementById('selected-size-label').textContent = '— select a size';
+      updateVariantSummary();
       syncPurchaseState();
     };
 
@@ -713,6 +776,7 @@ Router.register('/product/:id', async (params) => {
         ? `<i class="fas fa-check-circle" style="color:#2e7d32;margin-right:6px"></i><span style="color:#2e7d32;font-weight:600">${stock} in stock</span>`
         : `<i class="fas fa-times-circle" style="color:#e53;margin-right:6px"></i><span style="color:#e53;font-weight:600">Out of Stock</span>`;
 
+      updateVariantSummary();
       syncPurchaseState();
     };
 

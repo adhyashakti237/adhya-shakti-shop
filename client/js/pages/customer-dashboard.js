@@ -147,6 +147,61 @@ function accountReturnReasonHtml(o) {
     </div>`;
 }
 
+function accountRefundResultMeta(result, paymentStatus) {
+  const r = String(result || '').toLowerCase();
+  const p = String(paymentStatus || '').toLowerCase();
+  if (r === 'refunded_automatically' || p === 'refunded') {
+    return {
+      icon: 'fa-check-circle',
+      title: 'Refund issued automatically',
+      text: 'The refund was sent back to the original payment method. Most banks show it within 5-7 business days.',
+      tone: 'success',
+    };
+  }
+  if (r === 'manual_refund_required' || p === 'refund_pending') {
+    return {
+      icon: 'fa-clock',
+      title: 'Refund needs team review',
+      text: 'The order is cancelled and our team needs to complete the refund from Stripe/admin.',
+      tone: 'warn',
+    };
+  }
+  if (r === 'no_payment_to_refund') {
+    return {
+      icon: 'fa-info-circle',
+      title: 'No captured payment to refund',
+      text: 'The order was cancelled before a captured payment needed to be refunded.',
+      tone: 'info',
+    };
+  }
+  return {
+    icon: 'fa-info-circle',
+    title: 'Refund status',
+    text: 'If a refund applies, timing depends on the original payment method and your bank.',
+    tone: 'info',
+  };
+}
+
+function accountCancellationDetailsHtml(o) {
+  const status = String(o?.status || '').toLowerCase();
+  const payment = String(o?.payment_status || '').toLowerCase();
+  if (status !== 'cancelled' && payment !== 'refund_pending' && payment !== 'refunded') return '';
+  const refund = accountRefundResultMeta(o?.refund_result, payment);
+  const by = String(o?.cancelled_by || '').toLowerCase();
+  const who = by === 'customer' ? 'Cancelled by you' : by === 'admin' || by === 'staff' ? 'Cancelled by our team' : 'Cancelled';
+  const when = o?.cancelled_at ? fmtDate(o.cancelled_at) : '';
+  return `
+    <div class="account-cancel-panel ${refund.tone}" style="border:1px solid var(--border);border-radius:12px;padding:14px;margin:0 0 16px;background:#fff">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <i class="fas ${refund.icon}" style="margin-top:2px;color:${refund.tone === 'success' ? 'var(--success)' : refund.tone === 'warn' ? '#d97706' : 'var(--primary)'}"></i>
+        <div style="min-width:0">
+          <div style="font-weight:800;color:var(--text);margin-bottom:4px">${esc(who)}${when ? ` on ${esc(when)}` : ''}</div>
+          <div style="font-size:.9rem;color:var(--text-light);line-height:1.55"><strong>${esc(refund.title)}.</strong> ${esc(refund.text)}</div>
+        </div>
+      </div>
+    </div>`;
+}
+
 function accountOrderTimeline(status, compact = false) {
   const current = ACCOUNT_ORDER_STEPS.indexOf(String(status || '').toLowerCase());
   const special = current === -1;
@@ -541,6 +596,7 @@ async function openOrderModal(id) {
 
         ${accountOrderNextActionHtml(o)}
         ${accountReturnReasonHtml(o)}
+        ${accountCancellationDetailsHtml(o)}
 
         <div class="alert alert-info" style="margin-bottom:16px">
           <strong>${esc(accountStatusMeta(o.status).label)}:</strong>

@@ -1492,6 +1492,156 @@ def register(app, deps):
             "SELECT id,name,stock,low_stock_threshold FROM products "
             "WHERE is_active=1 AND stock <= low_stock_threshold ORDER BY stock ASC LIMIT ?", (limit,)).fetchall())
 
+    def category_paths(db):
+        rows = rows_to_list(db.execute(
+            "SELECT id,name,parent_id FROM categories WHERE IFNULL(kind,'') IN ('catalog','clothing','')"
+        ).fetchall())
+        by_id = {r['id']: r for r in rows}
+        cache = {}
+
+        def path_for(cid, seen=None):
+            if not cid:
+                return 'No category'
+            if cid in cache:
+                return cache[cid]
+            if cid not in by_id:
+                return 'No category'
+            seen = seen or set()
+            if cid in seen:
+                return by_id[cid]['name'] or 'No category'
+            seen.add(cid)
+            row = by_id[cid]
+            name = row['name'] or 'No category'
+            parent = row.get('parent_id')
+            path = name if not parent else path_for(parent, seen) + ' / ' + name
+            cache[cid] = path
+            return path
+
+        return {cid: path_for(cid) for cid in by_id}
+
+    def profit_by_product(db, frm, to, limit=50):
+        paths = category_paths(db)
+        rows = db.execute("""SELECT si.item_id, si.name, p.category_id,
+                SUM(si.qty) qty,
+                SUM(si.qty * si.unit_price) revenue,
+                SUM(si.qty * si.unit_cost) cost,
+                SUM(si.qty * (si.unit_price - si.unit_cost)) profit
+            FROM acc_sale_items si
+            JOIN acc_sales s ON s.id=si.sale_id
+            LEFT JOIN products p ON p.id=si.item_id
+            WHERE s.sale_date BETWEEN ? AND ?
+              AND si.item_id IS NOT NULL
+              AND lower(IFNULL(si.name,'')) <> 'shipping'
+            GROUP BY COALESCE(si.item_id, si.name), si.name, p.category_id
+            ORDER BY revenue DESC, qty DESC
+            LIMIT ?""", (frm, to, limit)).fetchall()
+        out = []
+        for r in rows:
+            revenue = float(r['revenue'] or 0)
+            profit = float(r['profit'] or 0)
+            out.append({
+                'item_id': r['item_id'] or '',
+                'name': r['name'] or 'Item',
+                'category': paths.get(r['category_id'], 'No category'),
+                'qty': r['qty'] or 0,
+                'revenue': round(revenue, 2),
+                'cost': round(r['cost'] or 0, 2),
+                'profit': round(profit, 2),
+                'margin': round((profit / revenue) * 100, 1) if revenue else 0,
+            })
+        return out
+
+    def profit_by_category(db, frm, to):
+        buckets = {}
+        for row in profit_by_product(db, frm, to, limit=500):
+            key = row['category'] or 'No category'
+            cur = buckets.setdefault(key, {'category': key, 'qty': 0, 'revenue': 0, 'cost': 0, 'profit': 0})
+            cur['qty'] += row['qty'] or 0
+            cur['revenue'] += row['revenue'] or 0
+            cur['cost'] += row['cost'] or 0
+            cur['profit'] += row['profit'] or 0
+        out = []
+        for cur in buckets.values():
+            revenue = cur['revenue'] or 0
+            out.append({
+                'category': cur['category'],
+                'qty': cur['qty'],
+                'revenue': round(cur['revenue'], 2),
+                'cost': round(cur['cost'], 2),
+                'profit': round(cur['profit'], 2),
+                'margin': round((cur['profit'] / revenue) * 100, 1) if revenue else 0,
+            })
+        return sorted(out, key=lambda r: r['revenue'], reverse=True)
+
+    def vendor_statement_summary(db, frm, to, limit=50):
+        rows = db.execute("""SELECT v.id, v.name,
+                IFNULL((SELECT SUM(total) FROM acc_purchases WHERE vendor_id=v.id AND purchase_date BETWEEN ? AND ?),0) purchase_total,
+                IFNULL((SELECT COUNT(*) FROM acc_purchases WHERE vendor_id=v.id AND purchase_date BETWEEN ? AND ?),0) purchase_count,
+                IFNULL((SELECT SUM(amount) FROM acc_expenses WHERE vendor_id=v.id AND expense_date BETWEEN ? AND ?),0) expense_total,
+                IFNULL((SELECT COUNT(*) FROM acc_expenses WHERE vendor_id=v.id AND expense_date BETWEEN ? AND ?),0) expense_count
+            FROM acc_vendors v
+            WHERE v.is_active=1
+            ORDER BY v.name COLLATE NOCASE""", (frm, to, frm, to, frm, to, frm, to)).fetchall()
+        out = []
+        for r in rows:
+            total = float(r['purchase_total'] or 0) + float(r['expense_total'] or 0)
+            if total <= 0:
+                continue
+            out.append({
+                'id': r['id'],
+                'name': r['name'],
+                'purchase_total': round(r['purchase_total'] or 0, 2),
+                'purchase_count': r['purchase_count'] or 0,
+                'expense_total': round(r['expense_total'] or 0, 2),
+                'expense_count': r['expense_count'] or 0,
+                'total_spent': round(total, 2),
+            })
+        return sorted(out, key=lambda r: r['total_spent'], reverse=True)[:limit]
+
+    def products_missing_cost(db, limit=40):
+        paths = category_paths(db)
+        rows = db.execute("""SELECT id,name,sku,category_id,stock,price,cost_price
+            FROM products
+            WHERE IFNULL(is_active,1)=1 AND IFNULL(cost_price,0)<=0
+            ORDER BY stock DESC, name COLLATE NOCASE
+            LIMIT ?""", (limit,)).fetchall()
+        return [{
+            'id': r['id'], 'name': r['name'], 'sku': r['sku'] or '',
+            'category': paths.get(r['category_id'], 'No category'),
+            'stock': r['stock'] or 0, 'price': round(r['price'] or 0, 2),
+            'cost_price': round(r['cost_price'] or 0, 2),
+        } for r in rows]
+
+    def restock_suggestions(db, limit=40):
+        rows = db.execute("""SELECT id,name,sku,stock,low_stock_threshold,cost_price,price
+            FROM products
+            WHERE IFNULL(is_active,1)=1
+              AND IFNULL(stock,0) <= IFNULL(low_stock_threshold,5)
+            ORDER BY stock ASC, name COLLATE NOCASE
+            LIMIT ?""", (limit,)).fetchall()
+        out = []
+        for r in rows:
+            stock = float(r['stock'] or 0)
+            threshold = float(r['low_stock_threshold'] if r['low_stock_threshold'] is not None else 5)
+            suggested = max(1, round((threshold * 2) - stock))
+            vendor = db.execute("""SELECT v.name
+                FROM acc_purchase_items pi
+                JOIN acc_purchases pu ON pu.id=pi.purchase_id
+                LEFT JOIN acc_vendors v ON v.id=pu.vendor_id
+                WHERE pi.item_id=?
+                ORDER BY pu.purchase_date DESC, pu.created_at DESC
+                LIMIT 1""", (r['id'],)).fetchone()
+            out.append({
+                'id': r['id'], 'name': r['name'], 'sku': r['sku'] or '',
+                'stock': stock, 'low_stock_threshold': threshold,
+                'suggested_qty': suggested,
+                'estimated_cost': round(suggested * float(r['cost_price'] or 0), 2),
+                'cost_price': round(r['cost_price'] or 0, 2),
+                'sale_price': round(r['price'] or 0, 2),
+                'vendor_name': (vendor['name'] if vendor and vendor['name'] else ''),
+            })
+        return out
+
     # ── Dashboard ────────────────────────────────────────────────────────────
     @app.route('/api/acc/dashboard', methods=['GET'])
     @staff_required
@@ -1533,6 +1683,11 @@ def register(app, deps):
         m['expense_by_category'] = [{'category': c['category'] or 'Other', 'amount': round(c['amount'] or 0, 2)} for c in by_cat]
         m['top_items'] = best_sellers(db, frm, to)
         m['vendor_summary'] = vendor_summary(db, frm, to)
+        m['profit_by_product'] = profit_by_product(db, frm, to)
+        m['profit_by_category'] = profit_by_category(db, frm, to)
+        m['vendor_statement'] = vendor_statement_summary(db, frm, to)
+        m['missing_cost_products'] = products_missing_cost(db)
+        m['restock_suggestions'] = restock_suggestions(db)
         return jsonify(m)
 
     @app.route('/api/acc/reports/monthly', methods=['GET'])
@@ -1585,11 +1740,35 @@ def register(app, deps):
         db = get_db()
         frm, to = date_range()
         typ = clean_text(request.args.get('type'), 20).lower() or 'sales'
-        if typ not in ('sales', 'purchases', 'expenses', 'inventory'):
+        if typ not in ('sales', 'purchases', 'expenses', 'inventory', 'product_profit', 'category_profit', 'vendors', 'restock', 'missing_cost'):
             typ = 'sales'
         buf = io.StringIO(); w = csv.writer(buf)
         qf = lambda n: ('%g' % (n or 0))
-        if typ == 'expenses':
+        if typ == 'product_profit':
+            w.writerow(['Product', 'Category', 'Qty sold', 'Revenue', 'Product cost', 'Profit', 'Margin %'])
+            for r in profit_by_product(db, frm, to, limit=1000):
+                w.writerow([r['name'], r['category'], qf(r['qty']), '%.2f' % r['revenue'],
+                            '%.2f' % r['cost'], '%.2f' % r['profit'], '%.1f' % r['margin']])
+        elif typ == 'category_profit':
+            w.writerow(['Category', 'Qty sold', 'Revenue', 'Product cost', 'Profit', 'Margin %'])
+            for r in profit_by_category(db, frm, to):
+                w.writerow([r['category'], qf(r['qty']), '%.2f' % r['revenue'],
+                            '%.2f' % r['cost'], '%.2f' % r['profit'], '%.1f' % r['margin']])
+        elif typ == 'vendors':
+            w.writerow(['Vendor', 'Purchase count', 'Purchase total', 'Expense count', 'Expense total', 'Total spent'])
+            for r in vendor_statement_summary(db, frm, to, limit=1000):
+                w.writerow([r['name'], r['purchase_count'], '%.2f' % r['purchase_total'],
+                            r['expense_count'], '%.2f' % r['expense_total'], '%.2f' % r['total_spent']])
+        elif typ == 'restock':
+            w.writerow(['Product', 'SKU', 'Stock', 'Low stock threshold', 'Suggested qty', 'Cost price', 'Estimated cost', 'Last vendor'])
+            for r in restock_suggestions(db, limit=1000):
+                w.writerow([r['name'], r['sku'], qf(r['stock']), qf(r['low_stock_threshold']),
+                            qf(r['suggested_qty']), '%.2f' % r['cost_price'], '%.2f' % r['estimated_cost'], r['vendor_name']])
+        elif typ == 'missing_cost':
+            w.writerow(['Product', 'SKU', 'Category', 'Stock', 'Sale price', 'Cost price'])
+            for r in products_missing_cost(db, limit=1000):
+                w.writerow([r['name'], r['sku'], r['category'], qf(r['stock']), '%.2f' % r['price'], '%.2f' % r['cost_price']])
+        elif typ == 'expenses':
             w.writerow(['Date', 'Category', 'Vendor / Paid to', 'Payment', 'Amount', 'Notes'])
             for e in db.execute("SELECT e.*, v.name vn FROM acc_expenses e LEFT JOIN acc_vendors v ON v.id=e.vendor_id WHERE e.expense_date BETWEEN ? AND ? ORDER BY e.expense_date", (frm, to)):
                 w.writerow([e['expense_date'], e['category'], e['vn'] or e['payee'], e['payment_method'], '%.2f' % (e['amount'] or 0), e['notes']])

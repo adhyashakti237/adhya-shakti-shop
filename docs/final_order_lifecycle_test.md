@@ -71,7 +71,22 @@ Only run this if you are comfortable testing the operational flow.
 
 1. Request a return from the customer side, or mark return requested from admin if supported.
 2. Confirm the return request email and admin flag are correct.
-3. Test cancellation/refund email wording only when it matches the real order situation.
+3. For a pending or processing order, test customer cancellation only when you are comfortable refunding the real payment.
+4. Confirm cancelled orders show who cancelled them, cancellation time, and refund status in the customer order detail view.
+5. Confirm customer receives the cancellation email and admin receives the customer-cancelled alert.
+6. Confirm stock is restored for the cancelled order item(s).
+7. Confirm Stripe shows the refund result, or that the website clearly says manual refund review is needed.
+
+## Read-only Smoke Audit
+
+Run this after deployment when you want a quick public-site check without placing an order:
+
+```bash
+cd /home/adhyashakti/ecommerce
+python scripts/website_smoke_audit.py --base https://adhyashaktishop.com
+```
+
+The smoke audit checks important public pages, public APIs, and the JavaScript markers that keep customer order actions working.
 
 ## Pass Criteria
 

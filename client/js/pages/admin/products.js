@@ -59,6 +59,15 @@ Router.register('/admin/products', async () => {
     renderProductsPage();
   }
 
+  function syncProductUrl() {
+    const params = new URLSearchParams();
+    if (productFilter && productFilter !== 'active') params.set('filter', productFilter);
+    if (searchQuery) params.set('search', searchQuery);
+    if (currentPage > 1) params.set('page', String(currentPage));
+    const qs = params.toString();
+    history.replaceState(null, '', `/admin/products${qs ? '?' + qs : ''}`);
+  }
+
   function renderProductsPage() {
     const totalPages = Math.ceil(totalProducts / PER_PAGE);
     document.querySelector('.admin-content').innerHTML = `
@@ -124,13 +133,14 @@ Router.register('/admin/products', async () => {
   let searchTimer;
   window.searchProducts = (q) => {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => { searchQuery = q; currentPage = 1; loadAll(); }, 350);
+    searchTimer = setTimeout(() => { searchQuery = q; currentPage = 1; syncProductUrl(); loadAll(); }, 350);
   };
 
-  window.goProductPage = (p) => { currentPage = p; loadAll(); };
+  window.goProductPage = (p) => { currentPage = p; syncProductUrl(); loadAll(); };
   window.setProductFilter = (filter) => {
     productFilter = normalizeProductFilter(filter);
     currentPage = 1;
+    syncProductUrl();
     loadAll();
   };
 
@@ -206,7 +216,7 @@ Router.register('/admin/products', async () => {
           <div class="admin-product-action-row">
             <a class="btn btn-sm btn-ghost" href="/product/${encodeURIComponent(p.id)}" target="_blank" rel="noopener" aria-label="View ${esc(p.name)}"><i class="fas fa-eye"></i></a>
             <button class="btn btn-sm btn-ghost" data-csp-onclick="openProductModalById('${p.id}')" aria-label="Edit ${esc(p.name)}"><i class="fas fa-edit"></i></button>
-            <button class="btn btn-sm btn-danger" data-csp-onclick="deleteProduct('${p.id}')" aria-label="Delete ${esc(p.name)}"><i class="fas fa-trash"></i></button>
+            <button class="btn btn-sm btn-danger" data-csp-onclick="deleteProduct('${p.id}')" aria-label="Archive ${esc(p.name)}"><i class="fas fa-box-archive"></i></button>
           </div>
         </td>
       </tr>`).join('');
@@ -516,7 +526,7 @@ Router.register('/admin/products', async () => {
   window.deleteProduct = async (id) => {
     const product = productById.get(id);
     const name = product?.name || 'this product';
-    if (!confirm(`Archive "${name}"? It will be marked inactive, not permanently deleted.`)) return;
+    if (!confirm(`Archive "${name}"? It will be marked inactive, not permanently deleted. Old orders and reports stay safe.`)) return;
     try { await api.del(`/admin/products/${id}`); toast('Product archived', 'success'); await loadAll(); }
     catch (e) { toast(e.message, 'error'); }
   };

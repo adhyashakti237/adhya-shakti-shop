@@ -22,7 +22,8 @@ const Reports = {
   types: [
     { k:'pl', label:'Profit & Loss' }, { k:'full', label:'Full business' }, { k:'sales', label:'Sales' },
     { k:'purchases', label:'Purchases' }, { k:'expenses', label:'Expenses' }, { k:'vendor', label:'Vendors' },
-    { k:'inventory', label:'Inventory' }, { k:'stock', label:'Stock' },
+    { k:'productProfit', label:'Product profit' }, { k:'categoryProfit', label:'Category profit' },
+    { k:'restock', label:'Restock' }, { k:'inventory', label:'Inventory' }, { k:'stock', label:'Stock' },
   ],
 
   rangeDates(){
@@ -70,7 +71,8 @@ const Reports = {
       if (Reports._type === 'stock') return Reports.stock(box, from, to);
       const d = await API.get(`/api/acc/reports/summary?from=${from}&to=${to}`);
       ({ pl: Reports.pl, full: Reports.full, sales: Reports.sales, purchases: Reports.purchases,
-         expenses: Reports.expenses, vendor: Reports.vendor }[Reports._type] || Reports.pl)(box, d, from, to);
+         expenses: Reports.expenses, vendor: Reports.vendor, productProfit: Reports.productProfit,
+         categoryProfit: Reports.categoryProfit, restock: Reports.restock }[Reports._type] || Reports.pl)(box, d, from, to);
     } catch(e){ box.innerHTML = `<div class="empty"><p>${esc(e.message)}</p></div>`; }
   },
 
@@ -96,6 +98,10 @@ const Reports = {
     const cats = (d.expense_by_category || []).map(c => Reports.kv(esc(c.category), money(c.amount))).join('');
     const items = (d.top_items || []).slice(0,6).map(i => `<tr><td>${esc(i.name)}</td><td class="r">${fmtQty(i.qty)}</td><td class="r">${money(i.revenue)}</td><td class="r">${money(i.profit)}</td></tr>`).join('');
     const vends = (d.vendor_summary || []).map(v => Reports.kv(esc(v.name), money(v.spent))).join('') || '<div class="small muted">No vendor spend in range</div>';
+    const categoryProfit = (d.profit_by_category || []).slice(0, 6).map(c => `<tr><td>${esc(c.category)}</td><td class="r">${money(c.revenue)}</td><td class="r">${money(c.profit)}</td><td class="r">${c.margin}%</td></tr>`).join('');
+    const warnings = [];
+    if ((d.missing_cost_products || []).length) warnings.push(`${d.missing_cost_products.length} product${d.missing_cost_products.length === 1 ? '' : 's'} missing cost price`);
+    if ((d.restock_suggestions || []).length) warnings.push(`${d.restock_suggestions.length} product${d.restock_suggestions.length === 1 ? '' : 's'} need restock review`);
     box.innerHTML = `<div class="card card-pad">
       <h3 style="font-size:15px;font-weight:600;margin-bottom:8px">Full business report</h3>
       ${Reports.kv('Sales', money(d.total_sales))}
@@ -109,11 +115,14 @@ const Reports = {
       ${Reports.kv('Inventory value (retail)', money(d.inventory_retail_value))}
       ${Reports.kv('Number of sales', d.sales_count)}
     </div>
+    ${warnings.length ? `<div class="alert alert-warn mt16"><i class="fa-solid fa-triangle-exclamation"></i><span>${warnings.map(esc).join(' · ')}</span></div>` : ''}
     <div class="card card-pad mt16"><h3 style="font-size:14px;font-weight:600;margin-bottom:6px">Best sellers</h3>
       <table class="dtable"><thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Revenue</th><th class="r">Profit</th></tr></thead><tbody>${items || '<tr><td colspan=4 class="muted small">No sales</td></tr>'}</tbody></table></div>
+    <div class="card card-pad mt16"><h3 style="font-size:14px;font-weight:600;margin-bottom:6px">Profit by category</h3>
+      <table class="dtable"><thead><tr><th>Category</th><th class="r">Revenue</th><th class="r">Profit</th><th class="r">Margin</th></tr></thead><tbody>${categoryProfit || '<tr><td colspan=4 class="muted small">No category profit yet</td></tr>'}</tbody></table></div>
     <div class="card card-pad mt16"><h3 style="font-size:14px;font-weight:600;margin-bottom:6px">Spend by vendor</h3>${vends}</div>
     <div class="card card-pad mt16"><h3 style="font-size:14px;font-weight:600;margin-bottom:6px">Where money went</h3>${cats || '<div class="small muted">No expenses</div>'}</div>
-    <div class="mt16" style="display:flex;gap:8px;flex-wrap:wrap">${Reports.exportBtn('sales','sales')}${Reports.exportBtn('purchases','purchases')}${Reports.exportBtn('expenses','expenses')}</div>`;
+    <div class="mt16" style="display:flex;gap:8px;flex-wrap:wrap">${Reports.exportBtn('sales','sales')}${Reports.exportBtn('product_profit','product profit')}${Reports.exportBtn('category_profit','category profit')}${Reports.exportBtn('purchases','purchases')}${Reports.exportBtn('expenses','expenses')}</div>`;
   },
 
   sales(box, d){
@@ -141,13 +150,68 @@ const Reports = {
   },
 
   vendor(box, d){
-    const rows = (d.vendor_summary || []).map(v => `<div class="row-item" data-ven="${v.id}" style="cursor:pointer">
+    const rows = (d.vendor_statement || []).map(v => `<div class="row-item" data-ven="${v.id}" style="cursor:pointer">
       <div class="ri-ico"><i class="fa-solid fa-building-store"></i></div>
-      <div class="ri-main"><div class="ri-title">${esc(v.name)}</div><div class="ri-sub">tap for full history</div></div>
-      <div class="ri-amt amt-out">${money(v.spent)}</div></div>`).join('');
+      <div class="ri-main"><div class="ri-title">${esc(v.name)}</div><div class="ri-sub">${v.purchase_count} purchase${v.purchase_count === 1 ? '' : 's'} · ${v.expense_count} expense${v.expense_count === 1 ? '' : 's'} · tap for full history</div></div>
+      <div class="ri-amt amt-out">${money(v.total_spent)}</div></div>`).join('');
     box.innerHTML = `<div class="card">${rows || '<div class="empty" style="padding:24px"><p class="small muted">No vendor spend in this range</p></div>'}</div>
-      <div class="small muted mt8">Tap a vendor for every purchase, expense &amp; receipt.</div>`;
+      <div class="small muted mt8">Tap a vendor for every purchase, expense &amp; receipt.</div>
+      <div class="mt16">${Reports.exportBtn('vendors','vendor statement')}</div>`;
     box.querySelectorAll('[data-ven]').forEach(r => r.onclick = () => Vendors.openDetail(r.getAttribute('data-ven')));
+  },
+
+  productProfit(box, d){
+    const rows = (d.profit_by_product || []).map(i => `<tr>
+      <td>${esc(i.name)}<div class="small muted">${esc(i.category)}</div></td>
+      <td class="r">${fmtQty(i.qty)}</td>
+      <td class="r">${money(i.revenue)}</td>
+      <td class="r">${money(i.cost)}</td>
+      <td class="r">${money(i.profit)}</td>
+      <td class="r">${i.margin}%</td>
+    </tr>`).join('');
+    box.innerHTML = `<div class="card card-pad">
+      <h3 style="font-size:14px;font-weight:600;margin-bottom:6px">Profit by product</h3>
+      <div class="small muted">Uses sales lines and each product's saved cost price. Products with missing cost will overstate profit.</div>
+      <table class="dtable report-wide"><thead><tr><th>Product</th><th class="r">Qty</th><th class="r">Revenue</th><th class="r">Cost</th><th class="r">Profit</th><th class="r">Margin</th></tr></thead><tbody>${rows || '<tr><td colspan=6 class="muted small">No product sales in this range</td></tr>'}</tbody></table>
+    </div>
+    <div class="mt16">${Reports.exportBtn('product_profit','product profit')}</div>`;
+  },
+
+  categoryProfit(box, d){
+    const rows = (d.profit_by_category || []).map(c => `<tr>
+      <td>${esc(c.category)}</td>
+      <td class="r">${fmtQty(c.qty)}</td>
+      <td class="r">${money(c.revenue)}</td>
+      <td class="r">${money(c.cost)}</td>
+      <td class="r">${money(c.profit)}</td>
+      <td class="r">${c.margin}%</td>
+    </tr>`).join('');
+    box.innerHTML = `<div class="card card-pad">
+      <h3 style="font-size:14px;font-weight:600;margin-bottom:6px">Profit by category</h3>
+      <div class="small muted">Shows which product sections are producing the strongest margin.</div>
+      <table class="dtable report-wide"><thead><tr><th>Category</th><th class="r">Qty</th><th class="r">Revenue</th><th class="r">Cost</th><th class="r">Profit</th><th class="r">Margin</th></tr></thead><tbody>${rows || '<tr><td colspan=6 class="muted small">No category sales in this range</td></tr>'}</tbody></table>
+    </div>
+    <div class="mt16">${Reports.exportBtn('category_profit','category profit')}</div>`;
+  },
+
+  restock(box, d){
+    const missing = (d.missing_cost_products || []).map(i => `<tr><td>${esc(i.name)}<div class="small muted">${esc(i.category)}</div></td><td class="r">${fmtQty(i.stock)}</td><td class="r">${money(i.price)}</td></tr>`).join('');
+    const restock = (d.restock_suggestions || []).map(i => `<tr>
+      <td>${esc(i.name)}${i.vendor_name ? `<div class="small muted">Last vendor: ${esc(i.vendor_name)}</div>` : ''}</td>
+      <td class="r">${fmtQty(i.stock)}</td>
+      <td class="r">${fmtQty(i.low_stock_threshold)}</td>
+      <td class="r">${fmtQty(i.suggested_qty)}</td>
+      <td class="r">${money(i.estimated_cost)}</td>
+    </tr>`).join('');
+    box.innerHTML = `<div class="grid grid-2" style="margin-bottom:12px">
+      <div class="tile out"><div class="lbl">Needs restock review</div><div class="val" style="font-size:18px">${(d.restock_suggestions || []).length}</div></div>
+      <div class="tile out"><div class="lbl">Missing cost price</div><div class="val" style="font-size:18px">${(d.missing_cost_products || []).length}</div></div>
+    </div>
+    <div class="card card-pad"><h3 style="font-size:14px;font-weight:600;margin-bottom:6px">Restock suggestions</h3>
+      <table class="dtable report-wide"><thead><tr><th>Product</th><th class="r">Stock</th><th class="r">Low at</th><th class="r">Suggest</th><th class="r">Est. cost</th></tr></thead><tbody>${restock || '<tr><td colspan=5 class="muted small">No low-stock products</td></tr>'}</tbody></table></div>
+    <div class="card card-pad mt16"><h3 style="font-size:14px;font-weight:600;margin-bottom:6px">Products missing cost price</h3>
+      <table class="dtable report-wide"><thead><tr><th>Product</th><th class="r">Stock</th><th class="r">Sale price</th></tr></thead><tbody>${missing || '<tr><td colspan=3 class="muted small">All active products have cost prices</td></tr>'}</tbody></table></div>
+    <div class="mt16" style="display:flex;gap:8px;flex-wrap:wrap">${Reports.exportBtn('restock','restock')}${Reports.exportBtn('missing_cost','missing cost')}</div>`;
   },
 
   async inventory(box){
