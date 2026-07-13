@@ -329,8 +329,9 @@ def _email_html(content, preheader=''):
     logo_url = h(_email_abs_url('/images/email-logo.png'))
     return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 body{{font-family:Segoe UI,Arial,sans-serif;background:#f7f4ee;margin:0;padding:24px;color:#26332f}}
-.wrap{{max-width:640px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e7dfd2;box-shadow:0 6px 22px rgba(29,92,74,.10)}}
+.wrap{{width:100%;max-width:640px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e7dfd2;box-shadow:0 6px 22px rgba(29,92,74,.10);box-sizing:border-box}}
 .preheader{{display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;overflow:hidden;mso-hide:all}}
+.top-line{{height:7px;background:#0f513d}}
 .hdr{{background:#fffdf8;padding:26px 32px 20px;text-align:center;border-bottom:1px solid #eee7dc}}
 .hdr img{{width:190px;max-width:72%;height:auto;display:block;margin:0 auto}}
 .brandline{{color:#8a8f8c;font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;margin:12px 0 0}}
@@ -345,23 +346,25 @@ body{{font-family:Segoe UI,Arial,sans-serif;background:#f7f4ee;margin:0;padding:
 .warning{{background:#fff8eb;border:1px solid #f0d49a;border-radius:12px;padding:14px 16px;color:#6f4b12;margin:18px 0}}
 .trust{{background:#f8f6f0;border-top:1px solid #eee7dc;border-bottom:1px solid #eee7dc;padding:14px 34px;color:#52615c;font-size:.82rem;text-align:center}}
 .ftr{{background:#fbfaf7;border-top:1px solid #eee7dc;padding:24px 32px;text-align:center}}
-.hero{{background:#0f513d;color:#fff;border-radius:16px;padding:28px 22px;text-align:center;margin:0 0 24px}}
+.hero{{background:#0f513d;color:#fff;border-radius:16px;padding:28px 22px;text-align:center;margin:0 0 24px;box-sizing:border-box}}
 .hero h2{{color:#fff!important;font-size:1.75rem;margin:0 0 10px;line-height:1.15}}
 .hero p{{color:#e7f3ee!important;margin:0}}
 table.items{{width:100%;border-collapse:collapse;margin:16px 0;font-size:.9rem;border:1px solid #e9e3d8;border-radius:10px;overflow:hidden}}
 table.items th{{background:#f4f1ea;padding:10px;text-align:left;border-bottom:1px solid #e9e3d8;color:#57645f;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}}
 table.items td{{padding:10px;border-bottom:1px solid #eee8dd;color:#293833;vertical-align:top}}
 table.items tr:last-child td{{border-bottom:0}}
-@media(max-width:640px){{body{{padding:12px}}.body{{padding:26px 20px}}.hdr{{padding:22px 20px 18px}}.trust{{padding:14px 20px}}.ftr{{padding:22px 20px}}.hero h2{{font-size:1.45rem}}}}
+@media(max-width:640px){{body{{padding:0;overflow-x:hidden}}.wrap{{width:100%!important;max-width:430px!important;margin:0!important;border-radius:0;border-left:0;border-right:0}}.body{{padding:26px 18px}}.hdr{{padding:22px 18px 18px}}.trust{{padding:14px 18px}}.ftr{{padding:22px 18px}}.hero{{border-radius:14px;padding:24px 16px;overflow:hidden}}.hero h2{{font-size:1.45rem}}.hero p{{font-size:.95rem}}.quick-grid,.quick-grid tbody,.quick-grid tr{{display:block!important;width:100%!important;border-spacing:0!important}}.quick-grid td{{display:block!important;width:100%!important;box-sizing:border-box;margin:0 0 10px!important}}table.items{{font-size:.84rem}}table.items th,table.items td{{padding:8px 6px}}table.order-items thead{{display:none!important}}table.order-items,table.order-items tbody,table.order-items tr,table.order-items td{{display:block!important;width:100%!important;box-sizing:border-box}}table.order-items tr{{border-bottom:1px solid #eee8dd}}table.order-items td{{border-bottom:0!important;text-align:left!important}}table.order-items td.order-qty::before{{content:'Qty: ';font-weight:700;color:#57645f}}table.order-items td.order-price::before{{content:'Price: ';font-weight:700;color:#57645f}}table.order-items td.order-total::before{{content:'Line total: ';font-weight:700;color:#57645f}}table.order-items td.order-qty,table.order-items td.order-price,table.order-items td.order-total{{padding-top:0!important;color:#52615c}}.cta{{display:block;text-align:center;margin:8px 0!important}}}}
 </style></head><body>
 <div class="preheader">{safe_preheader}</div>
 <div class="wrap">
+<div class="top-line"></div>
 <div class="hdr"><img src="{logo_url}" alt="Adhya Shakti Shop"><p class="brandline">Shop &bull; Est. 2026</p></div>
 <div class="body">{content}</div>
 <div class="trust">Secure checkout &bull; Order tracking &bull; Responsive support &bull; Handled by Adhya Shakti Shop</div>
 <div class="ftr">
   <div style="font-family:Georgia,serif;font-size:1.05rem;font-weight:700;color:#1D5C4A;margin-bottom:4px">Adhya <span style="color:#C49A22">Shakti</span> Shop</div>
   <div style="font-size:.75rem;color:#8a8f8c;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px">Jewelry &nbsp;&bull;&nbsp; Clothing &nbsp;&bull;&nbsp; Custom Printing</div>
+  {_email_social_links_block()}
   <div style="font-size:.74rem;color:#9ca3af">New Jersey, USA &nbsp;&middot;&nbsp; <a href="mailto:contact@adhyashaktishop.com" style="color:#6b7280">contact@adhyashaktishop.com</a></div>
   <div style="font-size:.68rem;color:#b8b8b8;margin-top:8px">You are receiving this email because you interacted with Adhya Shakti Shop.</div>
   <div style="font-size:.68rem;color:#c7c7c7;margin-top:4px">&copy; 2026 Adhya Shakti Shop. All rights reserved.</div>
@@ -673,6 +676,26 @@ def email_password_reset(name, to_email, reset_link):
                'Reset Your Password — Adhya Shakti Shop', html)
 
 
+def email_password_changed(name, to_email):
+    html = _email_html(f"""
+<h2>Your Password Was Changed</h2>
+<p>Hi {h(name)},</p>
+<p>This is a security confirmation that the password for your Adhya Shakti Shop account was changed.</p>
+<div class="note">
+  If you made this change, no action is needed. For your security, any old sessions were signed out and you may need to log in again.
+</div>
+<div class="warning">
+  <strong>Did not make this change?</strong><br>
+  Contact us right away at <a href="mailto:contact@adhyashaktishop.com" style="color:#1D5C4A">contact@adhyashaktishop.com</a>.
+</div>
+<div style="text-align:center;margin:28px 0">
+  <a href="https://adhyashaktishop.com/login" class="cta">Go to Login</a>
+</div>
+<p class="muted">Account email: {h(to_email)}</p>""", 'Your Adhya Shakti Shop password was changed.')
+    send_email(CONTACT_MAIL_USER, CONTACT_MAIL_PASS, to_email,
+               'Your Password Was Changed — Adhya Shakti Shop', html)
+
+
 def email_contact_notification(name, cust_email, phone, message, inquiry_type='', order_number=''):
     inq_line = f'<p><strong>Inquiry Type:</strong> {h(inquiry_type)}</p>' if inquiry_type else ''
     ord_line  = f'<p><strong>Order Number:</strong> {h(order_number)}</p>' if order_number else ''
@@ -784,12 +807,12 @@ def _order_item_rows(items_data, include_total=True):
     </td>
   </tr>
 </table>"""
-        total_cell = f"<td style='text-align:right'>{_money(price * qty)}</td>" if include_total else ''
+        total_cell = f"<td class='order-total' style='text-align:right'>{_money(price * qty)}</td>" if include_total else ''
         rows.append(
             f"<tr>"
             f"<td>{item_cell}</td>"
-            f"<td style='text-align:center'>{qty}</td>"
-            f"<td style='text-align:right'>{_money(price)}</td>"
+            f"<td class='order-qty' style='text-align:center'>{qty}</td>"
+            f"<td class='order-price' style='text-align:right'>{_money(price)}</td>"
             f"{total_cell}"
             f"</tr>"
         )
@@ -962,7 +985,7 @@ def email_order_confirmation(order_num, customer_name, customer_email, items_dat
 </div>
 <p>Hi {h(customer_name)},</p>
 <p>Your payment was received securely, and we are getting everything ready.</p>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:8px;margin:18px 0 22px">
+<table role="presentation" class="quick-grid" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:8px;margin:18px 0 22px">
   <tr>
     <td style="{quick_card}"><strong style="color:#0f513d">Order number</strong><br>{h(order_num)}</td>
     <td style="{quick_card}"><strong style="color:#0f513d">Payment</strong><br>Paid by card - {_money(total)}</td>
@@ -973,7 +996,7 @@ def email_order_confirmation(order_num, customer_name, customer_email, items_dat
   </tr>
 </table>
 <h3>Your items</h3>
-<table class="items">
+<table class="items order-items">
   <thead><tr><th>Item</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th><th style="text-align:right">Line Total</th></tr></thead>
   <tbody>{rows}</tbody>
   <tfoot style="background:#f9f9f9">
@@ -2533,6 +2556,9 @@ def reset_password_route():
     db.execute("UPDATE password_resets SET used=1 WHERE id=?", (reset['id'],))
     db.commit()
     log_security_event('password_reset_completed', 'info', 'Password reset completed', email=reset['email'])
+    user = db.execute("SELECT name,email FROM users WHERE email=?", (reset['email'],)).fetchone()
+    if user:
+        email_password_changed(user['name'], user['email'])
     return clear_auth_cookie(jsonify({'message': 'Password updated. You can now log in with your new password.'}))
 
 
@@ -2556,6 +2582,7 @@ def change_password():
     db.execute("UPDATE users SET password=?, token_version=COALESCE(token_version,0)+1 WHERE id=?", (hashed, g.user['id']))
     db.commit()
     log_security_event('password_changed', 'info', 'User changed password', user_id=g.user.get('id'), email=g.user.get('email'))
+    email_password_changed(user['name'], user['email'])
     return clear_auth_cookie(jsonify({'message': 'Password changed successfully. Please log in again.'}))
 
 
