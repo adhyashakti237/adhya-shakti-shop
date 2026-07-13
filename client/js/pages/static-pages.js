@@ -5,13 +5,68 @@ Router.register('/clothing', async () => {
   const comingSoon = await clothingComingSoon();
   if (Router.stale(_gen)) return;
   if (!comingSoon) {
+    // Clothing is live — show the admin-managed category hierarchy as a real
+    // landing page (a card per branch) instead of dumping into a flat list.
+    let tree = { categories: [] };
+    try { tree = await api.get('/category-tree'); } catch {}
+    if (Router.stale(_gen)) return;
+    const clothing = activeCategoryTree(tree).find(c => (c.name || '').toLowerCase() === 'clothing');
+    if (!clothing) { Router.navigate('/products'); return; }
+    const branches = categoryChildren(clothing).filter(b => categorySubtreeCount(b) > 0);
+    const total = categorySubtreeCount(clothing);
+
+    const branchCard = (b) => {
+      const kids = categoryChildren(b).filter(k => categorySubtreeCount(k) > 0);
+      const count = categorySubtreeCount(b);
+      return `
+        <div class="card" style="padding:22px 20px">
+          <a href="/products?category=${encodeURIComponent(b.id)}" data-link
+             style="display:flex;align-items:center;gap:14px;color:inherit">
+            <span style="width:52px;height:52px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <i class="fas ${categoryIcon(b.name)}" style="font-size:1.25rem;color:var(--primary)"></i>
+            </span>
+            <span style="min-width:0">
+              <span style="display:block;font-family:Georgia,serif;font-size:1.15rem;font-weight:700">${esc(b.name)} <i class="fas fa-arrow-right" style="font-size:.7rem;opacity:.55;margin-left:4px"></i></span>
+              <span style="display:block;font-size:.82rem;color:var(--text-light)">${count} item${count === 1 ? '' : 's'}</span>
+            </span>
+          </a>
+          ${kids.length ? `
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+            ${kids.slice(0, 6).map(k => `
+              <a href="/products?category=${encodeURIComponent(k.id)}" data-link
+                 style="font-size:.8rem;padding:5px 12px;border:1px solid var(--border);border-radius:20px;color:var(--text);background:var(--bg-soft)">${esc(k.name)}</a>`).join('')}
+          </div>` : ''}
+        </div>`;
+    };
+
+    document.getElementById('app').innerHTML = `
+      <div class="page"><div class="container section">
+        <div class="breadcrumb" style="margin-bottom:18px"><a href="/" data-link>Home</a> / <span>Clothing</span></div>
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:26px">
+          <div>
+            <div style="color:var(--gold);font-size:.78rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">Shop</div>
+            <h1 style="font-family:Georgia,serif;font-size:clamp(1.8rem,4vw,2.4rem);margin-bottom:6px">Clothing</h1>
+            <p style="color:var(--text-light)">${total} item${total === 1 ? '' : 's'} available now.</p>
+          </div>
+          <a href="/products?category=${encodeURIComponent(clothing.id)}" data-link class="btn btn-primary"><i class="fas fa-tshirt"></i> Shop All Clothing</a>
+        </div>
+        ${branches.length ? `
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;margin-bottom:38px">
+          ${branches.map(branchCard).join('')}
+        </div>` : ''}
+        <h2 style="font-family:Georgia,serif;font-size:1.35rem;margin-bottom:16px">New In Clothing</h2>
+        <div id="clothing-live-rail" class="grid-4 merch-grid"><div class="spinner"></div></div>
+      </div></div>`;
+
     try {
-      const tree = await api.get('/category-tree');
+      const res = await api.get(`/products?category=${encodeURIComponent(clothing.id)}&per_page=8&sort=newest`);
       if (Router.stale(_gen)) return;
-      const cat = ((tree && (tree.categories || tree.types)) || []).find(c => c.name.toLowerCase() === 'clothing');
-      Router.navigate(cat ? `/products?category=${cat.id}` : '/products');
+      const rail = document.getElementById('clothing-live-rail');
+      if (rail) rail.innerHTML = (res.products || []).map(productCard).join('')
+        || '<p style="grid-column:1/-1;color:var(--text-light)">New arrivals are on the way.</p>';
     } catch {
-      if (!Router.stale(_gen)) Router.navigate('/products');
+      const rail = document.getElementById('clothing-live-rail');
+      if (rail) rail.innerHTML = '<p style="grid-column:1/-1;color:var(--text-light)">Could not load products. <a href="/products" data-link>Browse all products</a>.</p>';
     }
     return;
   }
