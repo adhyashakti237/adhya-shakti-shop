@@ -47,8 +47,27 @@ Only after reviewing the dry-run output, optimize product images:
 ```bash
 cd /home/adhyashakti/ecommerce
 python scripts/optimize_product_images.py --commit
-touch /var/www/adhyashakti_pythonanywhere_com_wsgi.py
 ```
+
+(No reload needed — image changes are picked up immediately. If you want to
+reload anyway, use the green Reload button on the PythonAnywhere Web tab.)
+
+For the practical storefront cleanup in one step, dry-run first:
+
+```bash
+cd /home/adhyashakti/ecommerce
+python scripts/store_cleanup_one_go.py --base https://adhyashaktishop.com
+```
+
+If the dry-run looks right, apply it:
+
+```bash
+cd /home/adhyashakti/ecommerce
+python scripts/store_cleanup_one_go.py --commit --base https://adhyashaktishop.com
+```
+
+(No reload needed — the cleanup only changes database rows and image files.
+If you want to reload anyway, use the green Reload button on the Web tab.)
 
 ## Manual Checks
 

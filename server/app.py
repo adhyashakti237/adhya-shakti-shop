@@ -125,11 +125,48 @@ CONTACT_MAIL_PASS = os.environ.get('CONTACT_MAIL_PASS', '')
 ORDER_MAIL_USER   = os.environ.get('ORDER_MAIL_USER',   'order@adhyashaktishop.com')
 ORDER_MAIL_PASS   = os.environ.get('ORDER_MAIL_PASS',   '')
 _SMTP_HOST, _SMTP_PORT = 'smtp.zoho.com', 587
+SITE_URL = os.environ.get('SITE_URL', 'https://adhyashaktishop.com').rstrip('/')
 
 
 def h(s):
     """HTML-escape user-supplied strings before interpolating into email HTML."""
     return escape(str(s)) if s else ''
+
+
+def _email_abs_url(path):
+    path = str(path or '').strip()
+    if not path:
+        return ''
+    if path.startswith(('http://', 'https://')):
+        return path
+    if not path.startswith('/'):
+        path = '/' + path
+    return f'{SITE_URL}{path}'
+
+
+def _email_social_links_block():
+    instagram_icon = h(_email_abs_url('/images/email-social-instagram-v4.png'))
+    whatsapp_icon = h(_email_abs_url('/images/email-social-whatsapp-v4.png'))
+    def social_cell(url, title, icon, alt, label):
+        return (
+            f'<td style="padding:0 12px;text-align:center;vertical-align:top">'
+            f'<a href="{url}" title="{title}" style="display:inline-block;text-decoration:none">'
+            f'<img src="{icon}" width="44" height="44" alt="{alt}" '
+            f'style="width:44px;height:44px;display:block;border:0;outline:0;margin:0 auto 6px;border-radius:12px">'
+            f'<span style="display:block;font-size:.72rem;color:#52615c;font-weight:700;letter-spacing:.02em">{label}</span>'
+            f'</a></td>'
+        )
+    return f"""
+  <table role="presentation" align="center" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:14px auto 0">
+    <tr>
+      <td colspan="3" style="text-align:center;color:#1D5C4A;font-size:.78rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;padding:0 0 12px">Find us on</td>
+    </tr>
+    <tr>
+      {social_cell('https://www.instagram.com/adhyashaktijewelry?igsh=MXZkbDQ2cnNhNGhrbw==', 'Adhya Shakti Jewelry Instagram', instagram_icon, 'Instagram', 'Jewelry')}
+      {social_cell('https://www.instagram.com/adhyashaktiprinting', 'Adhya Shakti Printing Instagram', instagram_icon, 'Instagram', 'Printing')}
+      {social_cell('https://wa.me/c/18483363769', 'Adhya Shakti WhatsApp Catalog', whatsapp_icon, 'WhatsApp', 'WhatsApp')}
+    </tr>
+  </table>"""
 
 
 def _csrf_signature(raw):
@@ -289,14 +326,14 @@ def csp_report():
 
 def _email_html(content, preheader=''):
     safe_preheader = h(preheader)
+    logo_url = h(_email_abs_url('/images/email-logo.png'))
     return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 body{{font-family:Segoe UI,Arial,sans-serif;background:#f7f4ee;margin:0;padding:24px;color:#26332f}}
 .wrap{{max-width:640px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e7dfd2;box-shadow:0 6px 22px rgba(29,92,74,.10)}}
 .preheader{{display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;overflow:hidden;mso-hide:all}}
-.hdr{{background:#0f3d31;padding:26px 32px;text-align:center}}
-.hdr h1{{color:#fff;font-size:1.38rem;margin:0;font-family:Georgia,serif;letter-spacing:.2px}}
-.hdr span{{color:#D6AE3D}}
-.hdr p{{color:#d7eee6;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;margin:8px 0 0}}
+.hdr{{background:#fffdf8;padding:26px 32px 20px;text-align:center;border-bottom:1px solid #eee7dc}}
+.hdr img{{width:190px;max-width:72%;height:auto;display:block;margin:0 auto}}
+.brandline{{color:#8a8f8c;font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;margin:12px 0 0}}
 .body{{padding:34px 34px 28px}}
 .body h2{{color:#123f33;font-size:1.28rem;margin:0 0 14px;line-height:1.35}}
 .body h3{{color:#123f33;font-size:1rem;margin:22px 0 10px}}
@@ -308,31 +345,78 @@ body{{font-family:Segoe UI,Arial,sans-serif;background:#f7f4ee;margin:0;padding:
 .warning{{background:#fff8eb;border:1px solid #f0d49a;border-radius:12px;padding:14px 16px;color:#6f4b12;margin:18px 0}}
 .trust{{background:#f8f6f0;border-top:1px solid #eee7dc;border-bottom:1px solid #eee7dc;padding:14px 34px;color:#52615c;font-size:.82rem;text-align:center}}
 .ftr{{background:#fbfaf7;border-top:1px solid #eee7dc;padding:24px 32px;text-align:center}}
+.hero{{background:#0f513d;color:#fff;border-radius:16px;padding:28px 22px;text-align:center;margin:0 0 24px}}
+.hero h2{{color:#fff!important;font-size:1.75rem;margin:0 0 10px;line-height:1.15}}
+.hero p{{color:#e7f3ee!important;margin:0}}
 table.items{{width:100%;border-collapse:collapse;margin:16px 0;font-size:.9rem;border:1px solid #e9e3d8;border-radius:10px;overflow:hidden}}
 table.items th{{background:#f4f1ea;padding:10px;text-align:left;border-bottom:1px solid #e9e3d8;color:#57645f;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}}
 table.items td{{padding:10px;border-bottom:1px solid #eee8dd;color:#293833;vertical-align:top}}
 table.items tr:last-child td{{border-bottom:0}}
-@media(max-width:640px){{body{{padding:12px}}.body{{padding:26px 20px}}.hdr{{padding:22px 20px}}.trust{{padding:14px 20px}}.ftr{{padding:22px 20px}}}}
+@media(max-width:640px){{body{{padding:12px}}.body{{padding:26px 20px}}.hdr{{padding:22px 20px 18px}}.trust{{padding:14px 20px}}.ftr{{padding:22px 20px}}.hero h2{{font-size:1.45rem}}}}
 </style></head><body>
 <div class="preheader">{safe_preheader}</div>
 <div class="wrap">
-<div class="hdr"><h1>Adhya <span>Shakti</span> Shop</h1><p>Secure checkout &bull; New Jersey, USA</p></div>
+<div class="hdr"><img src="{logo_url}" alt="Adhya Shakti Shop"><p class="brandline">Shop &bull; Est. 2026</p></div>
 <div class="body">{content}</div>
 <div class="trust">Secure checkout &bull; Order tracking &bull; Responsive support &bull; Handled by Adhya Shakti Shop</div>
 <div class="ftr">
   <div style="font-family:Georgia,serif;font-size:1.05rem;font-weight:700;color:#1D5C4A;margin-bottom:4px">Adhya <span style="color:#C49A22">Shakti</span> Shop</div>
-  <div style="font-size:.75rem;color:#8a8f8c;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px">Jewelry &nbsp;&bull;&nbsp; Custom Printing &nbsp;&bull;&nbsp; Personalized Gifts</div>
-  <div style="margin-bottom:12px;font-size:.8rem;line-height:1.8">
-    <a href="https://www.instagram.com/adhyashaktijewelry" style="color:#1D5C4A;text-decoration:none;font-weight:600;margin:0 6px">@adhyashaktijewelry</a>
-    <span style="color:#ddd">&nbsp;|&nbsp;</span>
-    <a href="https://www.instagram.com/adhyashaktiprinting" style="color:#1D5C4A;text-decoration:none;font-weight:600;margin:0 6px">@adhyashaktiprinting</a>
-    <span style="color:#ddd">&nbsp;|&nbsp;</span>
-    <a href="https://wa.me/c/18483363769" style="color:#16a34a;text-decoration:none;font-weight:600;margin:0 6px">WhatsApp</a>
-  </div>
+  <div style="font-size:.75rem;color:#8a8f8c;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px">Jewelry &nbsp;&bull;&nbsp; Clothing &nbsp;&bull;&nbsp; Custom Printing</div>
   <div style="font-size:.74rem;color:#9ca3af">New Jersey, USA &nbsp;&middot;&nbsp; <a href="mailto:contact@adhyashaktishop.com" style="color:#6b7280">contact@adhyashaktishop.com</a></div>
   <div style="font-size:.68rem;color:#b8b8b8;margin-top:8px">You are receiving this email because you interacted with Adhya Shakti Shop.</div>
   <div style="font-size:.68rem;color:#c7c7c7;margin-top:4px">&copy; 2026 Adhya Shakti Shop. All rights reserved.</div>
 </div>
+</div></body></html>"""
+
+
+def _welcome_email_html(content, preheader=''):
+    safe_preheader = h(preheader)
+    logo_url = h(_email_abs_url('/images/email-logo.png'))
+    hero_url = h(_email_abs_url('/images/email-hero.jpg'))
+    return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+body{{font-family:Segoe UI,Arial,sans-serif;background:#f3eee5;margin:0;padding:24px;color:#17211d}}
+.preheader{{display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;overflow:hidden;mso-hide:all}}
+.wrap{{width:100%;max-width:760px;margin:0 auto;background:#fffaf2;border:1px solid #e8dfd1;border-radius:18px;overflow:hidden;box-shadow:0 18px 50px rgba(37,27,12,.10);box-sizing:border-box}}
+.top-line{{height:8px;background:#0f513d}}
+.hdr{{background:#fffdf8;padding:42px 34px 34px;text-align:center;border-bottom:1px solid #eee7dc}}
+.hdr img{{width:210px;max-width:74%;height:auto;display:block;margin:0 auto}}
+.hero{{min-height:350px;background:#0f513d url('{hero_url}') center/cover no-repeat;padding:42px 34px;text-align:center}}
+.hero-card{{width:100%;max-width:540px;margin:110px auto 0;padding:26px 22px;border-radius:18px;background:rgba(15,81,61,.88);border:1px solid rgba(255,255,255,.22);color:#fff;box-sizing:border-box}}
+.hero-card .eyebrow{{margin:0 0 10px;color:#f6d77a;font-size:.72rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase}}
+.hero-card h1{{margin:0 0 10px;color:#fff;font-size:2.1rem;line-height:1.08}}
+.hero-card p{{margin:0;color:#e7f3ee;line-height:1.55}}
+.band{{padding:34px;background:#fffaf2}}
+.card{{width:100%;background:#fffdf8;border:1px solid #d8caa8;border-radius:18px;padding:28px 24px;text-align:center;box-sizing:border-box}}
+.card h2{{margin:0 0 8px;color:#0f513d;font-size:1.7rem;line-height:1.12}}
+.card p{{margin:0 auto 18px;color:#66736c;line-height:1.55;max-width:480px}}
+.coupon{{display:inline-block;background:#fff7df;border:2px dashed #C49A22;border-radius:14px;padding:12px 26px;color:#17211d;font-size:1.45rem;font-weight:800;letter-spacing:3px;line-height:1.2}}
+.cta{{display:inline-block;min-width:210px;padding:13px 22px;border-radius:999px;background:#0f513d;color:#fff!important;font-weight:800;text-decoration:none!important;margin-top:22px}}
+.section{{padding:0 34px 30px;background:#fffaf2}}
+.section-card{{width:100%;padding:24px;border:1px solid #e8dfd1;border-radius:16px;background:#fff;box-sizing:border-box}}
+.section-card h2{{margin:0 0 18px;color:#17211d;font-size:1.35rem}}
+.shop-grid,.trust-grid{{width:100%;border-collapse:separate;border-spacing:14px 0}}
+.shop-card,.trust-card{{background:linear-gradient(180deg,#fffaf2 0%,#f4eadc 100%);border:1px solid #e8dfd1;border-radius:14px;padding:20px 14px;text-align:center;vertical-align:top}}
+.trust-card{{background:#fffdf8}}
+.icon{{display:inline-block;width:46px;height:46px;line-height:46px;border-radius:50%;background:#eef7f2;color:#0f513d;font-size:20px;margin-bottom:12px}}
+.title{{display:block;color:#0f513d;font-weight:800;margin-bottom:7px}}
+.small{{display:block;color:#52615c;font-size:.86rem;line-height:1.5}}
+.social-panel{{width:100%;padding:24px;border:1px solid #e8dfd1;border-radius:16px;background:#fffdf8;text-align:center;box-sizing:border-box}}
+.social-panel p{{margin:0 0 12px;color:#66736c;line-height:1.5}}
+.footer{{padding:26px 34px 32px;text-align:center;background:#fffdf8;border-top:1px solid #e8dfd1;color:#66736c;font-size:.84rem}}
+.footer a{{color:#0f513d;font-weight:700}}
+@media(max-width:640px){{body{{padding:0;overflow-x:hidden}}.wrap{{border-radius:0;border-left:0;border-right:0;max-width:100%!important}}.hdr{{padding:32px 18px 28px}}.hero{{padding:30px 18px;min-height:310px}}.hero-card{{margin-top:76px;padding:22px 16px}}.hero-card h1{{font-size:1.55rem}}.band,.section{{padding-left:18px;padding-right:18px;box-sizing:border-box}}.card{{padding:24px 16px}}.card h2{{font-size:1.45rem}}.shop-grid,.trust-grid,.shop-grid tbody,.trust-grid tbody,.shop-grid tr,.trust-grid tr{{display:block!important;width:100%!important;border-spacing:0 12px}}.shop-grid td,.trust-grid td{{display:block!important;width:100%!important;box-sizing:border-box;margin-bottom:12px}}.coupon{{font-size:1.14rem;padding:11px 14px;letter-spacing:2px;max-width:100%;box-sizing:border-box}}.cta{{min-width:0;width:80%;box-sizing:border-box}}}}
+</style></head><body>
+<div class="preheader">{safe_preheader}</div>
+<div class="wrap">
+  <div class="top-line"></div>
+  <div class="hdr"><img src="{logo_url}" alt="Adhya Shakti Shop"></div>
+  {content}
+  <div class="footer">
+    <strong style="color:#0f513d">Adhya Shakti</strong><br>
+    Shop - Est. 2026<br>
+    <a href="https://adhyashaktishop.com">Visit website</a> | <a href="mailto:contact@adhyashaktishop.com">Contact support</a> | <a href="https://adhyashaktishop.com/dashboard">My account</a><br><br>
+    You received this email because you created an account or subscribed on the Adhya Shakti website.
+  </div>
 </div></body></html>"""
 
 
@@ -397,66 +481,138 @@ def send_order_email(to_addr, subject, html):
 WELCOME_COUPON_CODE = 'WELCOME10'
 
 
+def _welcome_shop_cards_block():
+    return """
+<div class="section">
+  <div class="section-card">
+    <h2>Shop your favorites</h2>
+    <table role="presentation" class="shop-grid" width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td class="shop-card" width="33.33%">
+          <span class="icon">💎</span>
+          <span class="title">Jewelry</span>
+          <span class="small">Necklaces, earrings, bracelets, sets, and more.</span>
+        </td>
+        <td class="shop-card" width="33.33%">
+          <span class="icon">👗</span>
+          <span class="title">Clothing</span>
+          <span class="small">Women's and men's styles selected with care.</span>
+        </td>
+        <td class="shop-card" width="33.33%">
+          <span class="icon">🎨</span>
+          <span class="title">Custom Clothing</span>
+          <span class="small">T-shirts, polos, hoodies, and print your design.</span>
+        </td>
+      </tr>
+    </table>
+  </div>
+</div>"""
+
+
+def _welcome_trust_block():
+    return """
+<div class="section">
+  <table role="presentation" class="trust-grid" width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td class="trust-card" width="25%">
+        <span class="icon">$</span>
+        <span class="title">Secure checkout</span>
+        <span class="small">Protected payment processing.</span>
+      </td>
+      <td class="trust-card" width="25%">
+        <span class="icon">NJ</span>
+        <span class="title">Ships from NJ</span>
+        <span class="small">Most orders ship from New Jersey.</span>
+      </td>
+      <td class="trust-card" width="25%">
+        <span class="icon">🎧</span>
+        <span class="title">Real support</span>
+        <span class="small">Contact us when you need help.</span>
+      </td>
+      <td class="trust-card" width="25%">
+        <span class="icon">🏬</span>
+        <span class="title">Small business</span>
+        <span class="small">Thank you for supporting us.</span>
+      </td>
+    </tr>
+  </table>
+</div>"""
+
+
+def _welcome_social_panel_block():
+    return f"""
+<div class="section">
+  <div class="social-panel">
+    <p>Follow our official pages for new arrivals, custom work, jewelry updates, and quick WhatsApp shopping.</p>
+    {_email_social_links_block()}
+  </div>
+</div>"""
+
+
 def _welcome_offer_email_block(code):
     return f"""
-<div style="text-align:center;margin:28px 0">
-  <div style="background:#f0fdf4;border:2px solid #16a34a;border-radius:14px;padding:24px 32px;display:inline-block;min-width:260px">
-    <div style="font-size:.7rem;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:#166534;margin-bottom:12px">First Order Welcome Code</div>
-    <div style="font-size:2.2rem;font-weight:800;letter-spacing:5px;color:#1D5C4A;font-family:Georgia,serif;line-height:1">{h(code)}</div>
-    <div style="width:40px;height:2px;background:#16a34a;margin:14px auto"></div>
-    <div style="font-size:.88rem;color:#374151;font-weight:600">10% off your first order</div>
-    <div style="font-size:.78rem;color:#6b7280;margin-top:6px">One-time use, tied to this email</div>
+<div class="band">
+  <div class="card">
+    <h2>Enjoy 10% off your first order</h2>
+    <p>Use this welcome code at checkout. It is linked to your account so your first order feels a little more special.</p>
+    <div class="coupon">{h(code)}</div>
+    <br>
+    <a class="cta" href="https://adhyashaktishop.com/products">Start shopping</a>
   </div>
-</div>
-<p>Enter <strong>{h(code)}</strong> at checkout with this same email address. This code works once, only on your first order.</p>"""
+</div>"""
+
+
+def _welcome_hero_block(message):
+    return f"""
+<div class="hero">
+  <div class="hero-card">
+    <p class="eyebrow">Welcome gift inside</p>
+    <h1>Welcome to Adhya Shakti</h1>
+    <p>{h(message)}</p>
+  </div>
+</div>"""
+
+
+def _welcome_account_note(to_email):
+    return f"""
+<div class="section">
+  <p style="font-size:.82rem;color:#999;margin:0">Your account email: <a href="mailto:{h(to_email)}" style="color:#0f513d">{h(to_email)}</a></p>
+</div>"""
+
+
+def _welcome_email_content(name, to_email, code=None, discount_note=''):
+    message = 'We are glad you are here. Discover jewelry, clothing, and custom pieces selected with care.'
+    offer = _welcome_offer_email_block(code) if code else ''
+    note = f'<div class="section"><p class="muted">{h(discount_note)}</p></div>' if discount_note else ''
+    return f"""
+{_welcome_hero_block(message)}
+{offer}
+{_welcome_shop_cards_block()}
+{_welcome_trust_block()}
+{_welcome_social_panel_block()}
+{_welcome_account_note(to_email)}
+{note}"""
 
 
 def email_welcome(name, to_email, welcome_code=None):
-    offer_block = _welcome_offer_email_block(welcome_code) if welcome_code else ''
     preheader = 'Your Adhya Shakti Shop account is ready.'
     if welcome_code:
         preheader = f'Your account is ready. Use {welcome_code} for 10% off your first order.'
-    html = _email_html(f"""
-<h2>Welcome to Adhya Shakti Shop — You're In!</h2>
-<p>Hi {h(name)},</p>
-<p>We're so happy to have you here. Your account is all set. Here's what you can look forward to:</p>
-<ul style="line-height:2;color:#444;padding-left:20px">
-  <li><strong>Handcrafted Jewelry</strong> — unique pieces inspired by Indian heritage</li>
-  <li><strong>Custom Printing</strong> — T-shirts, polo shirts, and hoodies</li>
-  <li><strong>Personalized Gifts</strong> — made with love, right here in New Jersey</li>
-</ul>
-<p>Whether you're shopping for yourself or gifting someone special, we'll make sure every order feels personal.</p>
-{offer_block}
-<div style="text-align:center;margin:28px 0">
-  <a href="https://adhyashaktishop.com/products" class="cta">Explore the Collection</a>
-  <br>
-  <a href="https://adhyashaktishop.com/dashboard" style="display:inline-block;margin-top:12px;font-size:.85rem;color:#1D5C4A">Visit My Account</a>
-</div>
-<p style="font-size:.88rem;color:#666;border-top:1px solid #eee;padding-top:16px;margin-top:8px">
-  Follow us for new arrivals &amp; behind-the-scenes:<br>
-  <a href="https://www.instagram.com/adhyashaktijewelry" style="color:#1D5C4A">@adhyashaktijewelry</a> &nbsp;&middot;&nbsp;
-  <a href="https://www.instagram.com/adhyashaktiprinting" style="color:#1D5C4A">@adhyashaktiprinting</a>
-</p>
-<p style="font-size:.82rem;color:#999;margin-top:12px">Your account email: {h(to_email)}</p>""", preheader)
+    html = _welcome_email_html(_welcome_email_content(name, to_email, welcome_code), preheader)
     send_email(CONTACT_MAIL_USER, CONTACT_MAIL_PASS, to_email,
                'Welcome to Adhya Shakti Shop - Your Account Is Ready', html)
 
 
 def email_welcome_discount(to_email, code):
-    html = _email_html(f"""
-<h2>Your 10% Off Code Is Inside</h2>
-<p>Thank you for joining the Adhya Shakti Shop family. Here is the first-order code you asked for:</p>
-{_welcome_offer_email_block(code)}
-<div style="text-align:center;margin:28px 0">
-  <a href="https://adhyashaktishop.com/products" class="cta">Shop Now</a>
-</div>
-<p class="muted">If you already used this welcome offer or already placed your first order, the code cannot be used again.</p>
-<p style="font-size:.85rem;color:#555;border-top:1px solid #eee;padding-top:16px;margin-top:8px">
-  Follow us for new arrivals &amp; behind-the-scenes:<br>
-  <a href="https://www.instagram.com/adhyashaktijewelry" style="color:#1D5C4A;font-weight:600">@adhyashaktijewelry</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://www.instagram.com/adhyashaktiprinting" style="color:#1D5C4A;font-weight:600">@adhyashaktiprinting</a>
-</p>""", f'Use {code} for 10% off your first order.')
+    html = _welcome_email_html(
+        _welcome_email_content(
+            '',
+            to_email,
+            code,
+            'If you already used this welcome offer or already placed your first order, the code cannot be used again.'
+        ),
+        f'Use {code} for 10% off your first order.'
+    )
     send_email(CONTACT_MAIL_USER, CONTACT_MAIL_PASS, to_email,
                'Your 10% Off Welcome Code - Adhya Shakti Shop', html)
 
@@ -594,6 +750,17 @@ def _order_option_html(item):
     return "<div class='muted' style='font-size:.84rem;line-height:1.6;margin-top:4px'>" + "<br>".join(lines) + "</div>"
 
 
+def _order_item_image_html(item, name):
+    image = clean_text(item.get('image'), 300)
+    if not image:
+        return ''
+    image_url = _email_abs_url(image)
+    return f"""
+<td width="72" style="padding:0 12px 0 0;border-bottom:0">
+  <img src="{h(image_url)}" alt="{name}" width="64" height="76" style="width:64px;height:76px;object-fit:cover;border-radius:10px;border:1px solid #e9e3d8;background:#f8f6f0;display:block">
+</td>"""
+
+
 def _order_item_rows(items_data, include_total=True):
     rows = []
     for item in items_data or []:
@@ -607,10 +774,20 @@ def _order_item_rows(items_data, include_total=True):
         except (TypeError, ValueError):
             price = 0.0
         options = _order_option_html(item)
+        image_cell = _order_item_image_html(item, name)
+        item_cell = f"""
+<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%">
+  <tr>
+    {image_cell}
+    <td style="padding:0;border-bottom:0">
+      <strong>{name}</strong>{options}
+    </td>
+  </tr>
+</table>"""
         total_cell = f"<td style='text-align:right'>{_money(price * qty)}</td>" if include_total else ''
         rows.append(
             f"<tr>"
-            f"<td><strong>{name}</strong>{options}</td>"
+            f"<td>{item_cell}</td>"
             f"<td style='text-align:center'>{qty}</td>"
             f"<td style='text-align:right'>{_money(price)}</td>"
             f"{total_cell}"
@@ -773,16 +950,29 @@ def email_order_confirmation(order_num, customer_name, customer_email, items_dat
     disc_row = (f"<tr><td colspan='3' style='color:#15803d'>Discount</td>"
                 f"<td style='text-align:right;color:#15803d'>-{_money(discount)}</td></tr>") if discount else ''
     ship_cell = 'FREE' if shipping == 0 else _money(shipping)
+    quick_card = (
+        'background:#fffdf8;border:1px solid #e8dfd1;border-radius:12px;'
+        'padding:14px;color:#40514b;font-size:.86rem;vertical-align:top'
+    )
     html = _email_html(f"""
-<h2>Order Confirmed</h2>
-<p>Hi {h(customer_name)},</p>
-<p>Thank you for your order. Your payment was received securely, and we are getting everything ready.</p>
-<div class="note">
-  <strong>Order number:</strong> {h(order_num)}<br>
-  <strong>Total charged:</strong> {_money(total)}<br>
-  <strong>Processing time:</strong> 1-3 business days before shipping
+<div class="hero">
+  <div style="font-size:.72rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#f6d77a;margin-bottom:10px">Order received</div>
+  <h2>Your order is confirmed</h2>
+  <p>Thank you for shopping with Adhya Shakti. We received your order and will keep you updated as it moves forward.</p>
 </div>
-<h3>Items Ordered</h3>
+<p>Hi {h(customer_name)},</p>
+<p>Your payment was received securely, and we are getting everything ready.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:8px;margin:18px 0 22px">
+  <tr>
+    <td style="{quick_card}"><strong style="color:#0f513d">Order number</strong><br>{h(order_num)}</td>
+    <td style="{quick_card}"><strong style="color:#0f513d">Payment</strong><br>Paid by card - {_money(total)}</td>
+  </tr>
+  <tr>
+    <td style="{quick_card}"><strong style="color:#0f513d">Processing</strong><br>1-3 business days before shipping</td>
+    <td style="{quick_card}"><strong style="color:#0f513d">Support</strong><br>contact@adhyashaktishop.com</td>
+  </tr>
+</table>
+<h3>Your items</h3>
 <table class="items">
   <thead><tr><th>Item</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th><th style="text-align:right">Line Total</th></tr></thead>
   <tbody>{rows}</tbody>
@@ -794,7 +984,7 @@ def email_order_confirmation(order_num, customer_name, customer_email, items_dat
   </tfoot>
 </table>
 <h3>Shipping Address</h3>
-<p style="line-height:1.7">{_shipping_address_html(shipping_address)}</p>
+<div class="note" style="background:#fffdf8">{_shipping_address_html(shipping_address)}</div>
 <p>We will email you again when the order status changes. You can also check your order anytime from your account.</p>
 <div style="text-align:center;margin:26px 0 10px">
   <a href="https://adhyashaktishop.com/dashboard" class="cta">View My Orders</a>
