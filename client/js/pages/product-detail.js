@@ -782,8 +782,21 @@ Router.register('/product/:id', async (params) => {
 
     let curImgIdx = 0;
     const imgTrack = document.getElementById('main-img-track');
+    // Native lazy-loading never fires for slides hidden inside the transform-based
+    // track (the browser doesn't treat them as near the viewport), which left every
+    // slide after the first blank. Eagerly load the current slide's neighbors so the
+    // next swipe is always ready, while far-away slides keep the lazy benefit.
+    const slideImgs = imgTrack ? [...imgTrack.querySelectorAll('img')] : [];
+    const ensureSlidesLoaded = (i) => {
+      [i - 1, i, i + 1].forEach(j => {
+        const im = slideImgs[(j + imgs.length) % imgs.length];
+        if (im && im.loading === 'lazy') im.loading = 'eager';
+      });
+    };
+    ensureSlidesLoaded(0);
     window.goToProductImage = (i) => {
       curImgIdx = (i + imgs.length) % imgs.length;
+      ensureSlidesLoaded(curImgIdx);
       imgTrack.style.transform = `translateX(-${curImgIdx * 100}%)`;
       document.querySelectorAll('.thumb').forEach((t, idx) => t.classList.toggle('active', idx === curImgIdx));
     };
