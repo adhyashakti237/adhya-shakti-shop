@@ -94,9 +94,13 @@ def _looks_like_active_content(stream, kind):
         return any(bad in scan for bad in (
             # NOTE: no raw b'MZ' (exe header) scan here — a 2-byte pattern appears by
             # chance in virtually every multi-megabyte photo, rejecting legit uploads.
-            # The magic-byte sniff already pins the file type, and images are fully
-            # re-encoded through Pillow afterwards, which strips embedded payloads.
-            b'<script', b'<html', b'<?php', b'javascript:', b'<svg', b'<!doctype html'
+            # No b'<svg' scan either: C2PA Content Credentials (embedded by AI image
+            # tools) legitimately include the generator's icon as inline SVG, so that
+            # pattern flags essentially every AI-generated photo. Embedded SVG text in
+            # a valid raster file is inert — the magic-byte sniff pins the type at
+            # offset 0, and images are fully re-encoded through Pillow afterwards,
+            # which strips all metadata and embedded payloads.
+            b'<script', b'<html', b'<?php', b'javascript:', b'<!doctype html'
         ))
     if kind == 'pdf':
         suffix = _read_suffix(stream, 8192)
