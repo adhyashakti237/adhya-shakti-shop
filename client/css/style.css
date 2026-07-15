@@ -3684,6 +3684,9 @@ body:has(.sticky-atc.visible) .back-to-top { display: none; }
   .footer-brand h2 { font-size: 1.28rem; }
   .footer-brand p,
   .footer-col a { font-size: .86rem; }
+  /* Comfortable thumb targets: text links get taller hit areas on touch screens */
+  .footer-col a { padding: 8px 0; margin-bottom: 0; }
+  .announcement-bar a { display: inline-block; padding: 8px 4px; margin: -8px 0; }
   .footer-col h4 { font-size: .74rem; margin-bottom: 12px; }
   .footer-newsletter-bar {
     padding: 18px;
