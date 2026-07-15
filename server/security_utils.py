@@ -92,7 +92,11 @@ def _looks_like_active_content(stream, kind):
     scan = _read_all_limited(stream, PRIVATE_ATTACHMENT_MAX_BYTES).lower()
     if kind in ('jpg', 'png', 'webp'):
         return any(bad in scan for bad in (
-            b'<script', b'<html', b'<?php', b'javascript:', b'<svg', b'<!doctype html', b'\x4d\x5a'
+            # NOTE: no raw b'MZ' (exe header) scan here — a 2-byte pattern appears by
+            # chance in virtually every multi-megabyte photo, rejecting legit uploads.
+            # The magic-byte sniff already pins the file type, and images are fully
+            # re-encoded through Pillow afterwards, which strips embedded payloads.
+            b'<script', b'<html', b'<?php', b'javascript:', b'<svg', b'<!doctype html'
         ))
     if kind == 'pdf':
         suffix = _read_suffix(stream, 8192)
