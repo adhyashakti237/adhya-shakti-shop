@@ -7742,23 +7742,11 @@ def serve_upload(filename):
     }.get(ext, 'application/octet-stream')
     resp = send_from_directory(UPLOAD_FOLDER, filename, mimetype=mimetype)
     resp = secure_upload_headers(resp)
-    # Product upload filenames are random immutable names and are already public
-    # storefront assets. Let browsers and Cloudflare cache them aggressively so
-    # product grids do not pull every image from PythonAnywhere on each visit.
-    # Other uploads keep browser-private caching because they may be customer
-    # support/custom-print attachments that happen to live under /uploads.
-    cache_control = 'private, max-age=604800'
-    try:
-        db = get_db()
-        used_by_product = db.execute(
-            "SELECT 1 FROM products WHERE images LIKE ? LIMIT 1",
-            (f'%/uploads/{filename}%',)
-        ).fetchone()
-        if used_by_product:
-            cache_control = 'public, max-age=31536000, immutable'
-    except Exception:
-        cache_control = 'private, max-age=604800'
-    resp.headers['Cache-Control'] = cache_control
+    # Safe upload filenames are random immutable image names. They are already
+    # public once referenced by the storefront, so allow browser/CDN caching.
+    # This keeps product grids from pulling every image from PythonAnywhere on
+    # each page load.
+    resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
     resp.headers.pop('Pragma', None)
     return resp
 
