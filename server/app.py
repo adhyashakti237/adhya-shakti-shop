@@ -7838,7 +7838,7 @@ def serve_spa(path):
         html = f.read()
     html = inject_asset_version(html, get_asset_version())
     resp = Response(html, mimetype='text/html')
-    resp.headers['Cache-Control'] = 'no-cache'
+    resp.headers['Cache-Control'] = 'public, max-age=60, stale-while-revalidate=300'
     return resp
 
 

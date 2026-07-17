@@ -402,17 +402,17 @@ Router.register('/contact', () => {
         <a href="/track-order" data-link class="support-choice-card">
           <i class="fas fa-location-dot"></i>
           <strong>Track an order</strong>
-          <span>Use your order number and checkout email.</span>
+          <span>Order status and delivery updates.</span>
         </a>
         <a href="/refund" data-link class="support-choice-card">
           <i class="fas fa-rotate-left"></i>
           <strong>Returns & refunds</strong>
-          <span>Check cancellation, return, and exchange rules.</span>
+          <span>Returns, refunds, and exchanges.</span>
         </a>
         <a href="/bulk-orders" data-link class="support-choice-card">
           <i class="fas fa-boxes-stacked"></i>
           <strong>Bulk quote</strong>
-          <span>For 10+ pieces, teams, events, or business orders.</span>
+          <span>Quotes for 10+ pieces or events.</span>
         </a>
       </div>
       <div class="grid-2 mt-24">
