@@ -7761,7 +7761,16 @@ def serve_upload(filename):
 # change bumps the version automatically, so the URL changes and old cached
 # copies are bypassed without anyone needing to manually purge Cloudflare.
 
+_ASSET_VERSION_CACHE = None
+
+
 def get_asset_version():
+    # Walking every client file costs ~100 slow disk stats; do it once per app
+    # start. Deploys always end with a web-app Reload, which restarts the
+    # process and recomputes this — so the version still bumps on every deploy.
+    global _ASSET_VERSION_CACHE
+    if _ASSET_VERSION_CACHE is not None:
+        return _ASSET_VERSION_CACHE
     latest = 0.0
     css_path = os.path.join(CLIENT_DIR, 'css', 'style.css')
     if os.path.isfile(css_path):
@@ -7774,7 +7783,8 @@ def get_asset_version():
     for root, _dirs, files in os.walk(accounts_dir):
         for f in files:
             latest = max(latest, os.path.getmtime(os.path.join(root, f)))
-    return str(int(latest))
+    _ASSET_VERSION_CACHE = str(int(latest))
+    return _ASSET_VERSION_CACHE
 
 
 def inject_asset_version(html, version):
