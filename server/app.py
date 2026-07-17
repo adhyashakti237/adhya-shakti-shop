@@ -7742,10 +7742,23 @@ def serve_upload(filename):
     }.get(ext, 'application/octet-stream')
     resp = send_from_directory(UPLOAD_FOLDER, filename, mimetype=mimetype)
     resp = secure_upload_headers(resp)
-    # Public upload filenames are random immutable names. Browser-private caching
-    # speeds product/review images up while avoiding shared proxy/CDN storage for
-    # any customer-provided custom-print artwork that also lives under /uploads.
-    resp.headers['Cache-Control'] = 'private, max-age=604800'
+    # Product upload filenames are random immutable names and are already public
+    # storefront assets. Let browsers and Cloudflare cache them aggressively so
+    # product grids do not pull every image from PythonAnywhere on each visit.
+    # Other uploads keep browser-private caching because they may be customer
+    # support/custom-print attachments that happen to live under /uploads.
+    cache_control = 'private, max-age=604800'
+    try:
+        db = get_db()
+        used_by_product = db.execute(
+            "SELECT 1 FROM products WHERE images LIKE ? LIMIT 1",
+            (f'%/uploads/{filename}%',)
+        ).fetchone()
+        if used_by_product:
+            cache_control = 'public, max-age=31536000, immutable'
+    except Exception:
+        cache_control = 'private, max-age=604800'
+    resp.headers['Cache-Control'] = cache_control
     resp.headers.pop('Pragma', None)
     return resp
 
@@ -7829,6 +7842,8 @@ def serve_spa(path):
                 # Safe to cache long-term — any future change produces a new
                 # ?v= URL, so a stale cached copy of THIS exact URL is never wrong.
                 resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+            elif path.startswith('images/') or path.startswith('fonts/') or path == 'manifest.json':
+                resp.headers['Cache-Control'] = 'public, max-age=604800'
             return resp
     shell_name = 'admin.html' if (path == 'admin' or path.startswith('admin/')) else 'index.html'
     with open(os.path.join(CLIENT_DIR, shell_name), 'r', encoding='utf-8') as f:
