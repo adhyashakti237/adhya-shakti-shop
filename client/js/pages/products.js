@@ -47,6 +47,7 @@ Router.register('/products', async (params) => {
   let currentPage = parseInt(params.page) || 1;
   let currentCat = params.category || '';
   let currentSearch = params.search || '';
+  let currentSort = params.sort || 'newest';
   let allCats = [];
   let categoryTree = { categories: [] };
 
@@ -132,7 +133,7 @@ Router.register('/products', async (params) => {
       const search = document.getElementById('search-box');
       if (search) search.value = '';
       buildCatFilter(allCats, '');
-      loadProducts();
+      loadProducts({ scrollTop: true });
     });
   }
 
@@ -257,7 +258,7 @@ Router.register('/products', async (params) => {
     const allBtn = document.createElement('button');
     allBtn.className = 'cat-pill' + (!activeCat ? ' active' : '');
     allBtn.textContent = 'All';
-    allBtn.onclick = () => { currentCat = ''; currentPage = 1; loadProducts(); buildCatFilter(cats, ''); };
+    allBtn.onclick = () => { currentCat = ''; currentPage = 1; loadProducts({ scrollTop: true }); buildCatFilter(cats, ''); };
     bar.appendChild(allBtn);
 
     categoryGroups().forEach(group => {
@@ -285,7 +286,7 @@ Router.register('/products', async (params) => {
           wrap.classList.toggle('open', !wasOpen);
           return;
         }
-        currentCat = headId; currentPage = 1; loadProducts(); buildCatFilter(cats, headId);
+        currentCat = headId; currentPage = 1; loadProducts({ scrollTop: true }); buildCatFilter(cats, headId);
       };
       wrap.appendChild(btn);
 
@@ -301,7 +302,7 @@ Router.register('/products', async (params) => {
           e.stopPropagation();
           currentCat = headId;
           currentPage = 1;
-          loadProducts();
+          loadProducts({ scrollTop: true });
           buildCatFilter(cats, headId);
         };
         flyout.appendChild(allItem);
@@ -313,7 +314,7 @@ Router.register('/products', async (params) => {
             e.stopPropagation();
             currentCat = sub.id;
             currentPage = 1;
-            loadProducts();
+            loadProducts({ scrollTop: true });
             buildCatFilter(cats, sub.id);
           };
           flyout.appendChild(item);
@@ -336,20 +337,37 @@ Router.register('/products', async (params) => {
 
   window.applyFilters = () => {
     currentSearch = document.getElementById('search-box').value;
+    currentSort = document.getElementById('sort-filter')?.value || 'newest';
     currentPage = 1;
-    loadProducts();
+    loadProducts({ scrollTop: true });
   };
 
-  async function loadProducts() {
+  function updateProductsUrl() {
+    const qs = new URLSearchParams();
+    if (currentCat) qs.set('category', currentCat);
+    if (currentSearch) qs.set('search', currentSearch);
+    if (currentSort && currentSort !== 'newest') qs.set('sort', currentSort);
+    if (currentPage > 1) qs.set('page', String(currentPage));
+    const next = '/products' + (qs.toString() ? `?${qs.toString()}` : '');
+    const current = location.pathname + location.search;
+    if (current !== next) history.replaceState(history.state || {}, '', next);
+    Router._currentPath = location.pathname + location.search + location.hash;
+  }
+
+  async function loadProducts(options = {}) {
     const grid = document.getElementById('products-grid');
     grid.innerHTML = '<div class="spinner"></div>';
-    const sort = document.getElementById('sort-filter')?.value || 'newest';
+    const sort = currentSort || document.getElementById('sort-filter')?.value || 'newest';
+    const sortEl = document.getElementById('sort-filter');
+    if (sortEl && sortEl.value !== sort) sortEl.value = sort;
     try {
       let url = `/products?page=${currentPage}&per_page=12&sort=${sort}`;
       if (currentCat) url += `&category=${currentCat}`;
       if (currentSearch) url += `&search=${encodeURIComponent(currentSearch)}`;
       const { products, total } = await api.get(url);
       if (Router.stale(_gen)) return;
+      currentSort = sort;
+      updateProductsUrl();
 
       document.getElementById('results-count').textContent = `${total} product${total !== 1 ? 's' : ''} found`;
       updatePageIntro(total);
@@ -385,7 +403,7 @@ Router.register('/products', async (params) => {
             const search = document.getElementById('search-box');
             if (search) search.value = '';
             buildCatFilter(allCats, '');
-            loadProducts();
+            loadProducts({ scrollTop: true });
           });
           fillProductRail('empty-search-rail', { includeRecent: true, fallbackNewest: true, limit: 4 });
         }
@@ -404,11 +422,12 @@ Router.register('/products', async (params) => {
           ${currentPage < totalPages ? `<button class="page-btn" data-csp-onclick="changePage(${currentPage + 1})" aria-label="Next page"><i class="fas fa-chevron-right"></i></button>` : ''}
         </div>`;
       } else pag.innerHTML = '';
+      if (options.scrollTop) window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     } catch (e) {
       grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><i class="fas fa-exclamation-circle"></i><h3>Failed to load products</h3><p>${esc(e.message)}</p></div>`;
     }
   }
 
-  window.changePage = (p) => { currentPage = p; loadProducts(); window.scrollTo(0, 0); };
-  loadProducts();
+  window.changePage = (p) => { currentPage = p; loadProducts({ scrollTop: true }); };
+  await loadProducts();
 });

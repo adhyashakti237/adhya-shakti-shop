@@ -118,7 +118,16 @@ Router.register('/product/:id', async (params) => {
   const _gen = Router._gen;
   document.getElementById('sticky-atc')?.remove();
   const app = document.getElementById('app');
-  app.innerHTML = '<div class="container section"><div class="spinner"></div></div>';
+  const startY = window.scrollY || 0;
+  app.classList.add('route-silent-reset');
+  app.style.minHeight = `${Math.max(window.innerHeight || 0, startY + (window.innerHeight || 0))}px`;
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  app.innerHTML = '<div class="product-route-loading" aria-label="Loading product"><div class="spinner"></div></div>';
+
+  const revealProductRoute = () => {
+    app.classList.remove('route-silent-reset');
+    app.style.minHeight = '';
+  };
 
   try {
     const p = await api.get(`/products/${params.id}`);
@@ -180,7 +189,7 @@ Router.register('/product/:id', async (params) => {
             <div class="product-images">
               <div class="main-img" id="main-img-wrap">
                 <div class="main-img-track" id="main-img-track">
-                  ${imgs.map((im, i) => `<div class="main-img-slide"><img src="${im}" alt="${esc(p.name)} product image ${i + 1}" loading="${i === 0 ? 'eager' : 'lazy'}" decoding="async" fetchpriority="${i === 0 ? 'high' : 'auto'}" width="500" height="500" data-csp-onerror="this.src='https://placehold.co/500x500/f5f5f5/999?text=No+Image'" /></div>`).join('')}
+                  ${imgs.map((im, i) => `<div class="main-img-slide"><img src="${im}" alt="${esc(p.name)} product image ${i + 1}" loading="eager" decoding="async" fetchpriority="${i === 0 ? 'high' : 'auto'}" width="500" height="500" draggable="false" data-csp-onerror="this.src='https://placehold.co/500x500/f5f5f5/999?text=No+Image'" /></div>`).join('')}
                 </div>
                 <div class="product-image-hint"><i class="fas fa-magnifying-glass-plus"></i> Tap image to zoom${imgs.length > 1 ? ' · Swipe for more' : ''}</div>
                 ${imgs.length > 1 ? `
@@ -189,7 +198,7 @@ Router.register('/product/:id', async (params) => {
                 ` : ''}
               </div>
               ${imgs.length > 1 ? `<div class="thumb-row">
-                ${imgs.map((im, i) => `<div class="thumb ${i === 0 ? 'active' : ''}" data-csp-onclick="goToProductImage(${i})"><img src="${im}" alt="${esc(p.name)} thumbnail ${i + 1}" loading="lazy" decoding="async" width="72" height="72" /></div>`).join('')}
+                ${imgs.map((im, i) => `<button type="button" class="thumb ${i === 0 ? 'active' : ''}" data-img-index="${i}" data-csp-onclick="goToProductImage(${i})" aria-label="Show product image ${i + 1}"><img src="${im}" alt="${esc(p.name)} thumbnail ${i + 1}" loading="eager" decoding="async" width="72" height="72" draggable="false" /></button>`).join('')}
               </div>` : ''}
             </div>
             <div class="product-detail-info">
@@ -433,18 +442,32 @@ Router.register('/product/:id', async (params) => {
                   ${(() => { const reviewImgs = (r.images || []).map(u => safeMediaUrl(u)).filter(Boolean); return reviewImgs.length ? `<div class="review-photos">${reviewImgs.map((im,i) => `<img src="${im}" alt="Photo from ${esc(r.user_name)}'s review" class="review-photo" loading="lazy" decoding="async" width="72" height="72" data-csp-onclick="openLightbox(JSON.parse(decodeURIComponent('${encodeURIComponent(JSON.stringify(reviewImgs))}')),${i})" />`).join('')}</div>` : ''; })()}
                 </div>`).join('') : '<div class="empty-state" style="padding:40px 0"><i class="fas fa-star"></i><h3>No reviews yet</h3><p>Be the first to review this product</p></div>'}
             </div>
+            </div>
           </div>
-        </div>
-      </div>`;
+        </div>`;
+    revealProductRoute();
 
     saveRecentlyViewed(p, imgs[0]);
 
+    let curImgIdx = 0;
+    let suppressGalleryLightbox = false;
+
     // ── Image lightbox ────────────────────────────────────────────────────────
     document.querySelectorAll('.main-img-slide img').forEach(el =>
-      el.addEventListener('click', () => openLightbox(imgs, curImgIdx))
+      el.addEventListener('click', () => {
+        if (suppressGalleryLightbox) {
+          suppressGalleryLightbox = false;
+          return;
+        }
+        openLightbox(imgs, curImgIdx);
+      })
     );
-    document.querySelectorAll('.thumb img').forEach((el, i) =>
-      el.addEventListener('click', () => openLightbox(imgs, i))
+    document.querySelectorAll('.thumb').forEach(btn =>
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        goToProductImage(Number(btn.dataset.imgIndex || 0));
+      })
     );
 
     // ── Complete the Look ─────────────────────────────────────────────────────
@@ -780,16 +803,12 @@ Router.register('/product/:id', async (params) => {
       syncPurchaseState();
     };
 
-    let curImgIdx = 0;
     const imgTrack = document.getElementById('main-img-track');
-    // Native lazy-loading never fires for slides hidden inside the transform-based
-    // track (the browser doesn't treat them as near the viewport), which left every
-    // slide after the first blank. Eagerly load the current slide's neighbors so the
-    // next swipe is always ready, while far-away slides keep the lazy benefit.
+    // Product galleries are small, so image reliability matters more than lazy
+    // savings here. Keep this safety hook in place for older cached markup.
     const slideImgs = imgTrack ? [...imgTrack.querySelectorAll('img')] : [];
     const ensureSlidesLoaded = (i) => {
-      [i - 1, i, i + 1].forEach(j => {
-        const im = slideImgs[(j + imgs.length) % imgs.length];
+      slideImgs.forEach(im => {
         if (im && im.loading === 'lazy') im.loading = 'eager';
       });
     };
@@ -818,7 +837,11 @@ Router.register('/product/:id', async (params) => {
       imgTrack.addEventListener('touchend', () => {
         dragging = false;
         imgTrack.style.transition = '';
-        if (Math.abs(touchDeltaX) > 40) goToProductImage(curImgIdx + (touchDeltaX < 0 ? 1 : -1));
+        if (Math.abs(touchDeltaX) > 40) {
+          suppressGalleryLightbox = true;
+          goToProductImage(curImgIdx + (touchDeltaX < 0 ? 1 : -1));
+          setTimeout(() => { suppressGalleryLightbox = false; }, 250);
+        }
         else goToProductImage(curImgIdx);
         touchDeltaX = 0;
       });
@@ -994,5 +1017,6 @@ Router.register('/product/:id', async (params) => {
   } catch (e) {
     if (Router.stale(_gen)) return;
     app.innerHTML = `<div class="container section empty-state"><i class="fas fa-exclamation-circle"></i><h3>Product not found</h3><p>${esc(e.message)}</p><a href="/products" data-link class="btn btn-primary mt-16">Browse Products</a></div>`;
+    revealProductRoute();
   }
 });

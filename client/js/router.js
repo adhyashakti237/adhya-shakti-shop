@@ -1,6 +1,8 @@
 const Router = {
   routes: {},
   _gen: 0,
+  _scrollStore: {},
+  _currentPath: location.pathname + location.search + location.hash,
   // Pages that fetch data after an `await` should capture `Router._gen` before
   // the await, then check `Router.stale(gen)` after — if the user has since
   // navigated away, the fetch result is discarded instead of being written
@@ -10,6 +12,7 @@ const Router = {
   navigate(path, push = true) {
     if (!path) return;
     if (/^(https?:|mailto:|tel:)/i.test(path)) { location.href = path; return; }
+    Router.saveScrollPosition();
     const current = location.pathname + location.search + location.hash;
     if (push) history.pushState({}, '', path);
     else if (path === current) Router._gen++;
@@ -186,6 +189,34 @@ const Router = {
     document.getElementById('nav-chevron')?.classList.remove('open');
     document.getElementById('nav-dropdown-trigger')?.setAttribute('aria-expanded', 'false');
   },
+  scrollKey(path = location.pathname + location.search) {
+    const url = new URL(path, location.origin);
+    return url.pathname + url.search;
+  },
+  canRestoreScroll(path = location.pathname) {
+    const clean = String(path || '').split(/[?#]/)[0];
+    return clean === '/products' || clean === '/wishlist';
+  },
+  saveScrollPosition(path = location.pathname + location.search) {
+    if (!Router.canRestoreScroll(path)) return;
+    Router._scrollStore[Router.scrollKey(path)] = {
+      x: window.scrollX || 0,
+      y: window.scrollY || 0,
+      at: Date.now(),
+    };
+  },
+  restoreScrollPosition(path, gen) {
+    const key = Router.scrollKey(path);
+    const saved = Router._scrollStore[key];
+    if (!saved) return false;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (Router.stale(gen)) return;
+        window.scrollTo({ top: saved.y || 0, left: saved.x || 0, behavior: 'auto' });
+      });
+    });
+    return true;
+  },
   finishNavigation(gen, path) {
     if (Router.stale(gen)) return;
     const app = document.getElementById('app');
@@ -197,6 +228,8 @@ const Router = {
       if (hash) {
         const target = document.getElementById(decodeURIComponent(hash));
         if (target) target.scrollIntoView({ block: 'start' });
+      } else if (Router.canRestoreScroll(path) && Router.restoreScrollPosition(path, gen)) {
+        // Product listing pages preserve the shopper's place when returning from a product.
       } else {
         window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
       }
@@ -205,11 +238,14 @@ const Router = {
   },
 
   render(path) {
+    Router._currentPath = path;
     Router.cleanPageGlobals();
     Router.cleanPageDom();
     Router._gen++;
     const gen = Router._gen;
     const app = document.getElementById('app');
+    app?.classList.remove('route-silent-reset');
+    if (app) app.style.minHeight = '';
     app?.setAttribute('aria-busy', 'true');
     Router.closeNavigationUi();
     const cleanPath = path.split(/[?#]/)[0];
@@ -256,7 +292,16 @@ const Router = {
       .finally(() => Router.finishNavigation(gen, path));
   },
   init() {
-    window.addEventListener('popstate', () => Router.render(location.pathname + location.search + location.hash));
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+    window.addEventListener('pagehide', () => Router.saveScrollPosition());
+    window.addEventListener('beforeunload', () => Router.saveScrollPosition());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') Router.saveScrollPosition();
+    });
+    window.addEventListener('popstate', () => {
+      Router.saveScrollPosition(Router._currentPath);
+      Router.render(location.pathname + location.search + location.hash);
+    });
     document.addEventListener('click', e => {
       const a = e.target.closest('[data-link]');
       if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -266,6 +311,7 @@ const Router = {
       const url = new URL(href, location.origin);
       if (url.origin !== location.origin) return;
       e.preventDefault();
+      Router.saveScrollPosition();
       Router.navigate(url.pathname + url.search + url.hash);
     });
     Router.render(location.pathname + location.search + location.hash);
