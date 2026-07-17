@@ -944,9 +944,7 @@ tr:hover td { background: var(--bg); }
   min-width: 0;
   font-size: .9rem;
   line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: break-word;
 }
 .support-choice-card span {
   display: block;
@@ -955,9 +953,7 @@ tr:hover td { background: var(--bg); }
   color: var(--text-light);
   font-size: .78rem;
   line-height: 1.35;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: break-word;
 }
 .support-expectation-card {
   margin-top: 22px;
