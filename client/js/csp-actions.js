@@ -45,6 +45,8 @@
     'clearSecurityFilters',
     'deleteCoupon',
     'deleteProduct',
+    'deleteProductForever',
+    'submitDeleteForever',
     'deleteReview',
     'deleteUser',
     'doAdminLogin',

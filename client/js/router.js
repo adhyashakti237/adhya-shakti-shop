@@ -155,7 +155,7 @@ const Router = {
     // Admin/staff bundle (admin.html) — same shared cleanup list
     'doAdminLogin', 'searchProducts', 'goProductPage',
     'updateVariantStock', 'removeVariantColor', 'addVariantColor', 'openProductModal',
-    'removeImg', 'uploadProductImages', 'saveProduct', 'deleteProduct',
+    'removeImg', 'uploadProductImages', 'saveProduct', 'deleteProduct', 'deleteProductForever', 'submitDeleteForever',
     'setProductFilter',
     'previewBulkProducts', 'commitBulkProducts', 'resetBulkUpload', 'downloadBulkErrors',
     'openCatModal', 'addCategory', 'deleteCategory',

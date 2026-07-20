@@ -216,7 +216,8 @@ Router.register('/admin/products', async () => {
           <div class="admin-product-action-row">
             <a class="btn btn-sm btn-ghost" href="/product/${encodeURIComponent(p.id)}" target="_blank" rel="noopener" aria-label="View ${esc(p.name)}"><i class="fas fa-eye"></i></a>
             <button class="btn btn-sm btn-ghost" data-csp-onclick="openProductModalById('${p.id}')" aria-label="Edit ${esc(p.name)}"><i class="fas fa-edit"></i></button>
-            <button class="btn btn-sm btn-danger" data-csp-onclick="deleteProduct('${p.id}')" aria-label="Archive ${esc(p.name)}"><i class="fas fa-box-archive"></i></button>
+            <button class="btn btn-sm btn-danger" data-csp-onclick="deleteProduct('${p.id}')" title="Archive (hide, keep records)" aria-label="Archive ${esc(p.name)}"><i class="fas fa-box-archive"></i></button>
+            ${Auth.isStrictAdmin() ? `<button class="btn btn-sm btn-danger" style="background:#7f1d1d;border-color:#7f1d1d" data-csp-onclick="deleteProductForever('${p.id}')" title="Delete forever (remove completely)" aria-label="Delete ${esc(p.name)} forever"><i class="fas fa-trash"></i></button>` : ''}
           </div>
         </td>
       </tr>`).join('');
@@ -529,6 +530,77 @@ Router.register('/admin/products', async () => {
     if (!confirm(`Archive "${name}"? It will be marked inactive, not permanently deleted. Old orders and reports stay safe.`)) return;
     try { await api.del(`/admin/products/${id}`); toast('Product archived', 'success'); await loadAll(); }
     catch (e) { toast(e.message, 'error'); }
+  };
+
+  // Permanent delete (strict admin only) — removes the product and every trace.
+  window.deleteProductForever = async (id) => {
+    let plan;
+    try { plan = await api.get(`/admin/products/${id}/deletion-preview`); }
+    catch (e) { toast(e.message, 'error'); return; }
+    const name = plan.name || productById.get(id)?.name || 'this product';
+
+    if (plan.blocked) {
+      openModal(`
+        <div class="modal-header"><h3><i class="fas fa-shield-halved" style="color:#b45309;margin-right:8px"></i>Cannot delete this product</h3><button class="modal-close" data-csp-onclick="closeModal()" aria-label="Close">&times;</button></div>
+        <div class="modal-body">
+          <p style="margin-bottom:12px">${esc(plan.block_reason)}</p>
+          <p style="font-size:.9rem;color:var(--text-light)">Use <strong>Archive</strong> instead — it hides the product from the shop while keeping your order and sales history intact.</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-csp-onclick="closeModal()">Close</button>
+          <button class="btn btn-primary" data-csp-onclick="closeModal();deleteProduct('${esc(id)}')"><i class="fas fa-box-archive"></i> Archive instead</button>
+        </div>`);
+      return;
+    }
+
+    const c = plan.counts || {};
+    const line = (n, label) => n ? `<li>${n} ${label}</li>` : '';
+    const items = [
+      line(c.variants, 'colour/size option(s)'),
+      line(c.images, 'photo(s)'),
+      line(c.reviews, 'review(s)'),
+      line(c.wishlists, 'customer wishlist entr' + (c.wishlists === 1 ? 'y' : 'ies')),
+      line(c.back_in_stock, 'back-in-stock request(s)'),
+      line(c.purchase_lines, 'bookkeeping purchase line(s)'),
+      line(c.purchases_removed, 'empty purchase record(s)'),
+      line(c.stock_moves, 'stock-history entr' + (c.stock_moves === 1 ? 'y' : 'ies')),
+    ].join('');
+
+    openModal(`
+      <div class="modal-header"><h3><i class="fas fa-trash" style="color:var(--danger);margin-right:8px"></i>Delete forever?</h3><button class="modal-close" data-csp-onclick="closeModal()" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <p style="margin-bottom:12px">You are about to <strong>permanently delete</strong> <strong>${esc(name)}</strong>. This cannot be undone.</p>
+        ${items ? `<p style="font-size:.88rem;color:var(--text-light);margin-bottom:6px">This will also remove:</p><ul style="font-size:.88rem;color:var(--text-light);line-height:1.7;margin:0 0 14px;padding-left:20px">${items}</ul>` : ''}
+        <label style="display:block;font-size:.88rem;font-weight:600;margin-bottom:6px">Type <strong>DELETE</strong> to confirm:</label>
+        <input id="del-forever-input" class="form-control" autocomplete="off" placeholder="DELETE" />
+        <div id="del-forever-msg" style="margin-top:8px;font-size:.85rem;color:var(--danger)"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-csp-onclick="closeModal()">Keep product</button>
+        <button class="btn btn-primary" style="background:var(--danger);border-color:var(--danger)" data-csp-onclick="submitDeleteForever('${esc(id)}')"><i class="fas fa-trash"></i> Delete Forever</button>
+      </div>`);
+    setTimeout(() => document.getElementById('del-forever-input')?.focus(), 50);
+  };
+
+  window.submitDeleteForever = async (id) => {
+    const input = document.getElementById('del-forever-input');
+    const msg = document.getElementById('del-forever-msg');
+    if ((input?.value || '').trim().toUpperCase() !== 'DELETE') {
+      if (msg) msg.textContent = 'Please type DELETE to confirm.';
+      input?.focus();
+      return;
+    }
+    const btn = document.querySelector('.modal-footer .btn-primary');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...'; }
+    try {
+      const res = await api.del(`/admin/products/${id}/permanent`);
+      closeModal();
+      toast(res.message || 'Product permanently deleted', 'success');
+      await loadAll();
+    } catch (e) {
+      if (msg) msg.textContent = e.message;
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-trash"></i> Delete Forever'; }
+    }
   };
 
   // Category management now lives on the dedicated /admin/categories page.

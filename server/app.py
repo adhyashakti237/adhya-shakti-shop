@@ -3211,6 +3211,149 @@ def delete_product(pid):
     return jsonify({'message': 'Product deleted'})
 
 
+def _product_deletion_plan(db, pid):
+    """Everything a permanent delete would remove, plus a safety gate.
+    Refuses (blocked=True) when the product is tied to a customer order or a
+    bookkeeping sale — those records must never lose their line items."""
+    row = row_to_dict(db.execute("SELECT id,name,images FROM products WHERE id=?", (pid,)).fetchone())
+    if not row:
+        return None
+
+    order_hits = 0
+    for o in db.execute("SELECT items FROM orders").fetchall():
+        try:
+            if any(isinstance(i, dict) and i.get('id') == pid for i in json.loads(o['items'] or '[]')):
+                order_hits += 1
+        except Exception:
+            continue
+    sale_hits = db.execute("SELECT COUNT(*) c FROM acc_sale_items WHERE item_id=?", (pid,)).fetchone()['c']
+
+    empty_purchases = [r['id'] for r in db.execute(
+        """SELECT DISTINCT pi.purchase_id AS id FROM acc_purchase_items pi
+           WHERE pi.item_id=?
+             AND NOT EXISTS (SELECT 1 FROM acc_purchase_items o
+                             WHERE o.purchase_id=pi.purchase_id AND o.item_id IS NOT ?)""",
+        (pid, pid)).fetchall()]
+
+    try:
+        images = [str(x) for x in json.loads(row['images'] or '[]') if isinstance(x, str) and x.strip()]
+    except Exception:
+        images = []
+
+    blocked = order_hits > 0 or sale_hits > 0
+    block_reason = ''
+    if blocked:
+        parts = []
+        if order_hits:
+            parts.append(f"{order_hits} customer order{'s' if order_hits != 1 else ''}")
+        if sale_hits:
+            parts.append(f"{sale_hits} recorded sale{'s' if sale_hits != 1 else ''}")
+        block_reason = ('This product is part of ' + ' and '.join(parts) +
+                        '. To protect your order and sales history, archive it instead of deleting.')
+
+    return {
+        'id': pid,
+        'name': row['name'],
+        'blocked': blocked,
+        'block_reason': block_reason,
+        'counts': {
+            'variants': db.execute("SELECT COUNT(*) c FROM product_variants WHERE product_id=?", (pid,)).fetchone()['c'],
+            'reviews': db.execute("SELECT COUNT(*) c FROM reviews WHERE product_id=?", (pid,)).fetchone()['c'],
+            'wishlists': db.execute("SELECT COUNT(*) c FROM user_wishlist WHERE product_id=?", (pid,)).fetchone()['c'],
+            'back_in_stock': db.execute("SELECT COUNT(*) c FROM back_in_stock_requests WHERE product_id=?", (pid,)).fetchone()['c'],
+            'stock_moves': db.execute("SELECT COUNT(*) c FROM acc_stock_moves WHERE item_id=?", (pid,)).fetchone()['c'],
+            'purchase_lines': db.execute("SELECT COUNT(*) c FROM acc_purchase_items WHERE item_id=?", (pid,)).fetchone()['c'],
+            'purchases_removed': len(empty_purchases),
+            'images': len(images),
+        },
+        '_empty_purchases': empty_purchases,
+        '_images': images,
+    }
+
+
+@app.route('/api/admin/products/<pid>/deletion-preview', methods=['GET'])
+@admin_only_required
+def product_deletion_preview(pid):
+    db = get_db()
+    plan = _product_deletion_plan(db, pid)
+    if not plan:
+        return jsonify({'error': 'Product not found'}), 404
+    public = {k: v for k, v in plan.items() if not k.startswith('_')}
+    return jsonify(public)
+
+
+@app.route('/api/admin/products/<pid>/permanent', methods=['DELETE'])
+@admin_only_required
+def delete_product_permanent(pid):
+    db = get_db()
+    plan = _product_deletion_plan(db, pid)
+    if not plan:
+        return jsonify({'error': 'Product not found'}), 404
+    if plan['blocked']:
+        return jsonify({'error': plan['block_reason']}), 409
+
+    empty_purchases = plan['_empty_purchases']
+    private_bills_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'private_bills'))
+    bill_names = []
+    if empty_purchases:
+        marks = ','.join('?' * len(empty_purchases))
+        bill_names = [r['stored_name'] for r in db.execute(
+            f"SELECT stored_name FROM acc_attachments WHERE parent_type='purchase' AND parent_id IN ({marks})",  # nosec B608
+            empty_purchases).fetchall()]
+
+    try:
+        db.execute("BEGIN IMMEDIATE")
+        db.execute("DELETE FROM product_variants WHERE product_id=?", (pid,))
+        db.execute("DELETE FROM reviews WHERE product_id=?", (pid,))
+        db.execute("DELETE FROM user_wishlist WHERE product_id=?", (pid,))
+        db.execute("DELETE FROM back_in_stock_requests WHERE product_id=?", (pid,))
+        db.execute("DELETE FROM acc_stock_moves WHERE item_id=?", (pid,))
+        db.execute("DELETE FROM acc_purchase_items WHERE item_id=?", (pid,))
+        if empty_purchases:
+            marks = ','.join('?' * len(empty_purchases))
+            db.execute(f"DELETE FROM acc_attachments WHERE parent_type='purchase' AND parent_id IN ({marks})", empty_purchases)  # nosec B608
+            db.execute(f"DELETE FROM acc_purchases WHERE id IN ({marks})", empty_purchases)  # nosec B608
+        db.execute("DELETE FROM products WHERE id=?", (pid,))
+        db.commit()
+    except sqlite3.Error as exc:
+        try:
+            db.rollback()
+        except Exception:
+            pass  # nosec B110
+        log_security_event('product_hard_delete_failed', 'critical', 'Database error during permanent product delete',
+                           user_id=g.user.get('id'), metadata={'product_id': pid, 'error': str(exc)[:300]})
+        return jsonify({'error': 'Could not delete this product. Please try again.'}), 500
+
+    removed_images = 0
+    for url in plan['_images']:
+        fname = os.path.basename(url)
+        if fname and is_safe_stored_filename(fname):
+            fpath = os.path.abspath(os.path.join(UPLOAD_FOLDER, fname))
+            try:
+                if os.path.commonpath([os.path.abspath(UPLOAD_FOLDER), fpath]) == os.path.abspath(UPLOAD_FOLDER) and os.path.isfile(fpath):
+                    os.remove(fpath)
+                    removed_images += 1
+            except (OSError, ValueError):
+                pass  # nosec B110
+    for stored in bill_names:
+        if stored and is_safe_stored_filename(stored):
+            bpath = os.path.abspath(os.path.join(private_bills_dir, stored))
+            try:
+                if os.path.commonpath([private_bills_dir, bpath]) == private_bills_dir and os.path.isfile(bpath):
+                    os.remove(bpath)
+            except (OSError, ValueError):
+                pass  # nosec B110
+
+    log_admin_action('product_deleted_permanently', 'Product permanently deleted', {
+        'product_id': pid,
+        'entity_type': 'product',
+        'entity_id': pid,
+        'before': {'name': plan['name']},
+        'metadata': {'counts': plan['counts'], 'images_removed': removed_images},
+    })
+    return jsonify({'message': f"\"{plan['name']}\" was permanently deleted."})
+
+
 # ─── Categories ───────────────────────────────────────────────────────────────
 
 @app.route('/api/categories', methods=['GET'])
