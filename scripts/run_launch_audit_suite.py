@@ -201,6 +201,7 @@ def main() -> int:
         "scripts/performance_asset_audit.py",
         "scripts/launch_confidence_audit.py",
         "scripts/frontend_asset_integrity.py",
+        "scripts/launch_warning_report.py",
         "scripts/cleanup_historical_data_warnings.py",
         "scripts/update_product_costs_from_csv.py",
         "scripts/optimize_product_images.py",
@@ -275,6 +276,17 @@ def main() -> int:
                 "scripts/launch_confidence_audit.py",
                 "--report-json",
                 str(out_dir / "launch_confidence.json"),
+            ],
+            out_dir,
+            env,
+        ))
+        summary["steps"].append(run_step(
+            "launch_warning_report",
+            [
+                sys.executable,
+                "scripts/launch_warning_report.py",
+                "--out-dir",
+                str(out_dir / "warning_reports"),
             ],
             out_dir,
             env,
