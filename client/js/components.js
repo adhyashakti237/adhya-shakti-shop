@@ -38,6 +38,20 @@ function categoryIcon(label) {
   return 'fa-tshirt';
 }
 
+function collectionPath(node) {
+  const name = String(node?.name || '');
+  if (/jewel/i.test(name)) return '/jewelry';
+  if (/^clothing$/i.test(name)) return '/clothing';
+  if (/custom/i.test(name)) return '/custom-printing';
+  return node?.id ? `/products?category=${encodeURIComponent(node.id)}` : '/products';
+}
+
+function collectionLabel(node) {
+  const name = String(node?.name || '');
+  if (/custom/i.test(name)) return 'Custom';
+  return name || 'Collection';
+}
+
 const MOBILE_NAV_MAX = 900;
 
 // Backward aliases for older pages still being refactored.
@@ -101,9 +115,9 @@ function renderNavbar() {
           <button class="mobile-search-btn" data-csp-onclick="doNavSearch('m-search-input')" aria-label="Search products"><i class="fas fa-search"></i></button>
           <div class="nav-search-results" id="m-search-results" role="listbox" hidden></div>
         </div>
-        <a href="/jewelry" data-link class="nav-collection-link">Jewelry</a>
-        <a href="/clothing" data-link class="nav-collection-link">Clothing</a>
-        <a href="/custom-printing" data-link class="nav-collection-link">Custom</a>
+        <div class="nav-collection-item" data-nav-root="jewelry"><a href="/jewelry" data-link class="nav-collection-link">Jewelry</a></div>
+        <div class="nav-collection-item" data-nav-root="clothing"><a href="/clothing" data-link class="nav-collection-link">Clothing</a></div>
+        <div class="nav-collection-item" data-nav-root="custom"><a href="/custom-printing" data-link class="nav-collection-link">Custom</a></div>
         <button type="button" class="nav-action-link nav-search-toggle" data-csp-onclick="openDesktopSearch()" aria-label="Search products" title="Search"><i class="fas fa-search"></i></button>
         <a href="/wishlist" data-link class="cart-badge nav-action-link" aria-label="Open wishlist" title="Wishlist">
           <i class="fas fa-heart"></i> <span class="nav-action-text">Wishlist</span>
@@ -160,11 +174,63 @@ function renderNavbar() {
     setMobileNavOpen(!navLinksEl?.classList.contains('open'));
   });
 
-  document.querySelectorAll('#nav-links a').forEach(a =>
-    a.addEventListener('click', () => {
+  navLinksEl?.addEventListener('click', e => {
+    if (e.target.closest('a')) {
       setMobileNavOpen(false);
-    })
-  );
+    }
+  });
+
+  buildCollectionNav();
+}
+
+function buildCollectionNav() {
+  const navGen = Router._gen;
+  api.get('/category-tree').catch(() => ({ categories: [] })).then((categoryTree) => {
+    if (Router.stale(navGen)) return;
+    const roots = activeCategoryTree(categoryTree);
+    const rootFor = {
+      jewelry: roots.find(r => /jewel/i.test(r.name || '')),
+      clothing: roots.find(r => /^clothing$/i.test(r.name || '')),
+      custom: roots.find(r => /custom/i.test(r.name || '')),
+    };
+
+    Object.entries(rootFor).forEach(([key, root]) => {
+      const shell = document.querySelector(`.nav-collection-item[data-nav-root="${key}"]`);
+      if (!shell || !root) return;
+      const href = collectionPath(root);
+      const label = collectionLabel(root);
+      const children = categoryChildren(root).filter(c => c && c.is_active !== 0);
+      shell.innerHTML = `
+        <a href="${href}" data-link class="nav-collection-link">${esc(label)}${children.length ? ' <i class="fas fa-chevron-down nav-collection-chevron"></i>' : ''}</a>
+        ${children.length ? collectionDropdownHtml(children) : ''}
+      `;
+    });
+  });
+}
+
+function collectionDropdownHtml(nodes) {
+  const rows = nodes.map(node => {
+    const children = categoryChildren(node).filter(c => c && c.is_active !== 0);
+    const href = collectionPath(node);
+    return `
+      <div class="nav-collection-row ${children.length ? 'has-submenu' : ''}">
+        <a href="${href}" data-link class="nav-collection-drop-link">
+          <span><i class="fas ${categoryIcon(node.name)}"></i>${esc(node.name)}</span>
+          ${children.length ? '<i class="fas fa-chevron-right"></i>' : ''}
+        </a>
+        ${children.length ? `
+          <div class="nav-collection-submenu">
+            ${children.map(child => `
+              <a href="${collectionPath(child)}" data-link>
+                <i class="fas ${categoryIcon(child.name)}"></i>${esc(child.name)}
+              </a>
+            `).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+  return `<div class="nav-collection-menu">${rows}</div>`;
 }
 
 function doNavSearch(inputId = 'nav-search-input') {
