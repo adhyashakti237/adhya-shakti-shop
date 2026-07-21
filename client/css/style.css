@@ -1676,6 +1676,32 @@ tr:hover td { background: var(--bg); }
 }
 .account-order-summary-grid strong { color: var(--primary); font-size: 1.08rem; }
 .account-order-summary-grid span { color: var(--text-light); font-size: .78rem; font-weight: 650; }
+.account-order-filter-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(150px, 190px) auto;
+  align-items: center;
+  gap: 10px;
+}
+.account-order-clear {
+  height: 44px;
+  white-space: nowrap;
+  justify-content: center;
+}
+.account-empty-filter {
+  place-items: center;
+  gap: 7px;
+  padding: 28px 16px;
+  border: 1px dashed #d8cebd;
+  border-radius: 14px;
+  background: #fbfaf7;
+  color: var(--text-light);
+  text-align: center;
+}
+.account-empty-filter i {
+  color: var(--primary);
+  font-size: 1.25rem;
+}
+.account-empty-filter strong { color: var(--text); }
 .account-profile-summary { display: flex; align-items: center; gap: 14px; padding: 4px 0 18px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
 .account-profile-summary .dash-avatar { margin: 0; flex-shrink: 0; }
 .account-profile-summary h3 { margin: 0 0 3px; font-size: 1.08rem; }
@@ -2229,6 +2255,8 @@ tr:hover td { background: var(--bg); }
   .account-hero h1 { font-size: 1.35rem; }
   .account-hero-actions, .account-hero-actions .btn { width: 100%; }
   .account-overview-grid, .account-profile-grid { grid-template-columns: 1fr; }
+  .account-order-filter-row { grid-template-columns: 1fr; }
+  .account-order-clear { width: 100%; }
   .wishlist-grid-pro { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
   .wishlist-card-body { padding: 12px; }
   .wishlist-card-title { font-size: .88rem; min-height: auto; }

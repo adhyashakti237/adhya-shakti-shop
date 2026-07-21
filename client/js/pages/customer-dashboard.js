@@ -74,10 +74,20 @@ function customerOrderGuidance(o) {
   return `${map[s] || accountStatusMeta(s).message} ${support}`;
 }
 
-function accountOrderTrackingUrl(trackingNumber) {
+function accountTrackingMeta(trackingNumber) {
   const tracking = String(trackingNumber || '').trim();
-  if (!tracking) return '';
-  return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(tracking)}`;
+  if (!tracking) return { carrier: '', href: '' };
+  const compact = tracking.replace(/[\s-]/g, '').toUpperCase();
+  if (/^1Z[0-9A-Z]{16}$/.test(compact)) {
+    return { carrier: 'UPS', href: `https://www.ups.com/track?tracknum=${encodeURIComponent(compact)}` };
+  }
+  if (/^(\d{12}|\d{15}|\d{20}|\d{22})$/.test(compact) && !/^(9400|9205|9274|9270|9361|82)/.test(compact)) {
+    return { carrier: 'FedEx', href: `https://www.fedex.com/fedextrack/?trknbr=${encodeURIComponent(compact)}` };
+  }
+  if (/^(94|92|93|82)\d{18,24}$/.test(compact) || /^[A-Z]{2}\d{9}US$/.test(compact)) {
+    return { carrier: 'USPS', href: `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(compact)}` };
+  }
+  return { carrier: 'Carrier', href: `https://www.google.com/search?q=${encodeURIComponent(`${tracking} tracking`)}` };
 }
 
 function accountOrderNextAction(o) {
@@ -102,7 +112,7 @@ function accountOrderNextActionHtml(o) {
 
 function accountOrderTrackingPanel(o) {
   const tracking = String(o?.tracking_number || '').trim();
-  const href = accountOrderTrackingUrl(tracking);
+  const trackingMeta = accountTrackingMeta(tracking);
   if (!tracking) {
     return `
       <div class="account-tracking-panel muted">
@@ -118,10 +128,10 @@ function accountOrderTrackingPanel(o) {
       <i class="fas fa-truck-fast"></i>
       <div>
         <strong>${esc(tracking)}</strong>
-        <span>Carrier scans can take a little time to update after shipment.</span>
+        <span>${esc(trackingMeta.carrier)} scans can take a little time to update after shipment.</span>
       </div>
-      <a class="btn btn-sm btn-outline account-tracking-link" href="${href}" target="_blank" rel="noopener">
-        Track package <i class="fas fa-external-link-alt"></i>
+      <a class="btn btn-sm btn-outline account-tracking-link" href="${esc(trackingMeta.href)}" target="_blank" rel="noopener">
+        Track with ${esc(trackingMeta.carrier)} <i class="fas fa-external-link-alt"></i>
       </a>
     </div>`;
 }
@@ -411,10 +421,10 @@ Router.register('/dashboard/orders', async () => {
             <div><strong>${fmt(paidTotal)}</strong><span>Purchase total</span></div>
           </div>` : ''}
         ${orders.length ? `
-          <div class="flex-between mb-16" style="flex-wrap:wrap;gap:10px">
-            <input class="form-control" id="order-search" style="max-width:320px" placeholder="Search order #, product, or status..." data-csp-oninput="filterMyOrders()" />
-            <select class="form-control" id="order-status-filter" style="max-width:180px" data-csp-onchange="filterMyOrders()">
-              <option value="">All Statuses</option>
+          <div class="account-order-filter-row mb-16">
+            <input class="form-control" id="order-search" placeholder="Search order #, product, or status..." data-csp-oninput="filterMyOrders()" />
+            <select class="form-control" id="order-status-filter" data-csp-onchange="filterMyOrders()">
+              <option value="">All statuses</option>
               <option value="pending">Pending</option>
               <option value="processing">Processing</option>
               <option value="shipped">Shipped</option>
@@ -422,9 +432,17 @@ Router.register('/dashboard/orders', async () => {
               <option value="cancelled">Cancelled</option>
               <option value="refunded">Refunded</option>
             </select>
+            <button class="btn btn-outline btn-sm account-order-clear" data-csp-onclick="clearMyOrderFilters()">
+              <i class="fas fa-rotate-left"></i> Clear
+            </button>
           </div>
           <div id="my-orders-body" class="account-order-list account-order-list-full">
             ${orders.map(o => accountOrderCard(o)).join('')}
+          </div>
+          <div id="my-orders-empty-filter" class="account-empty-filter" style="display:none">
+            <i class="fas fa-magnifying-glass"></i>
+            <strong>No matching orders</strong>
+            <span>Try another order number, product name, or status.</span>
           </div>` :
           `<div class="empty-state"><i class="fas fa-box"></i><h3>No orders yet</h3><p>Start shopping to see your orders here</p><a href="/products" data-link class="btn btn-primary mt-16">Browse Products</a></div>`}
       </div>`, '/dashboard/orders');
@@ -433,11 +451,24 @@ Router.register('/dashboard/orders', async () => {
   window.filterMyOrders = () => {
     const search = (document.getElementById('order-search')?.value || '').toLowerCase();
     const status = document.getElementById('order-status-filter')?.value || '';
+    let visible = 0;
     document.querySelectorAll('#my-orders-body .account-order-card').forEach(row => {
       const matchSearch = !search || row.dataset.order?.includes(search);
       const matchStatus = !status || row.dataset.status === status || row.dataset.payment === status;
-      row.style.display = matchSearch && matchStatus ? '' : 'none';
+      const show = matchSearch && matchStatus;
+      row.style.display = show ? '' : 'none';
+      if (show) visible += 1;
     });
+    const empty = document.getElementById('my-orders-empty-filter');
+    if (empty) empty.style.display = visible ? 'none' : 'grid';
+  };
+
+  window.clearMyOrderFilters = () => {
+    const search = document.getElementById('order-search');
+    const status = document.getElementById('order-status-filter');
+    if (search) search.value = '';
+    if (status) status.value = '';
+    window.filterMyOrders?.();
   };
 
   window.viewOrder = (id) => openOrderModal(id);
