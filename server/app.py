@@ -2597,14 +2597,28 @@ def get_products():
     per_page = min(request.args.get('per_page', 12, type=int) or 12, 100)
     offset = (page - 1) * per_page
 
-    query = """SELECT p.*, c.name as category_name,
+    # Variant-aware availability: a product with colour/size variants counts as
+    # in stock when ANY variant has stock; a simple product uses its own stock.
+    in_stock_expr = """CASE
+        WHEN EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id)
+        THEN CASE WHEN EXISTS (SELECT 1 FROM product_variants v2
+                               WHERE v2.product_id = p.id AND IFNULL(v2.stock,0) > 0)
+                  THEN 1 ELSE 0 END
+        ELSE CASE WHEN IFNULL(p.stock,0) > 0 THEN 1 ELSE 0 END
+    END"""
+
+    query = f"""SELECT p.*, c.name as category_name,
         COALESCE(AVG(r.rating),0) as avg_rating,
-        COUNT(r.id) as review_count
+        COUNT(r.id) as review_count,
+        {in_stock_expr} as in_stock
         FROM products p
         LEFT JOIN categories c ON p.category_id=c.id
         LEFT JOIN reviews r ON r.product_id=p.id
         WHERE p.is_active=1"""
     params = []
+    in_stock_only = request.args.get('in_stock') == '1'
+    if in_stock_only:
+        query += f" AND {in_stock_expr} = 1"
     category_filter = ''
     if category:
         cat_row = db.execute(
@@ -2646,6 +2660,8 @@ def get_products():
     query += " GROUP BY p.id"
 
     total_where = ["p.is_active=1"]
+    if in_stock_only:
+        total_where.append(f"{in_stock_expr} = 1")
     if category_filter:
         total_where.append(category_filter.replace(" AND ", "", 1))
     if search:
@@ -2666,7 +2682,8 @@ def get_products():
         'price_desc': 'p.price DESC',
         'discount': '(p.compare_price - p.price) DESC',
     }.get(sort, 'p.created_at DESC')
-    query += f" ORDER BY {order_clause} LIMIT {per_page} OFFSET {offset}"
+    # In-stock items always rank above sold-out ones, whatever sort is chosen.
+    query += f" ORDER BY in_stock DESC, {order_clause} LIMIT {per_page} OFFSET {offset}"
     products = rows_to_list(db.execute(query, params).fetchall())
     for p in products:
         p['images'] = json.loads(p['images']) if p['images'] else []

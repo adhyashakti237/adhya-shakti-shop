@@ -29,6 +29,7 @@ Router.register('/products', async (params) => {
           </div>
         </div>
         <div id="cat-filter-bar" class="cat-pill-bar"></div>
+        <div id="stock-chip-bar" class="price-chips"></div>
         <div class="filter-bar">
           <select id="sort-filter" data-csp-onchange="applyFilters()">
             <option value="newest">Newest First</option>
@@ -48,6 +49,27 @@ Router.register('/products', async (params) => {
   let currentCat = params.category || '';
   let currentSearch = params.search || '';
   let currentSort = params.sort || 'newest';
+  // Off by default on every visit — shoppers opt in to hide sold-out items.
+  let inStockOnly = false;
+
+  function buildStockChip() {
+    const bar = document.getElementById('stock-chip-bar');
+    if (!bar) return;
+    bar.innerHTML = '';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'price-chip' + (inStockOnly ? ' active' : '');
+    btn.innerHTML = `<i class="fas fa-circle-check" style="margin-right:6px;font-size:.72rem"></i>In Stock Only`;
+    btn.setAttribute('aria-pressed', inStockOnly ? 'true' : 'false');
+    btn.onclick = () => {
+      inStockOnly = !inStockOnly;
+      currentPage = 1;
+      buildStockChip();
+      loadProducts({ scrollTop: true });
+    };
+    bar.appendChild(btn);
+  }
+  buildStockChip();
   let allCats = [];
   let categoryTree = { categories: [] };
 
@@ -130,6 +152,8 @@ Router.register('/products', async (params) => {
       currentCat = '';
       currentSearch = '';
       currentPage = 1;
+      inStockOnly = false;
+      buildStockChip();
       const search = document.getElementById('search-box');
       if (search) search.value = '';
       buildCatFilter(allCats, '');
@@ -364,6 +388,7 @@ Router.register('/products', async (params) => {
       let url = `/products?page=${currentPage}&per_page=12&sort=${sort}`;
       if (currentCat) url += `&category=${currentCat}`;
       if (currentSearch) url += `&search=${encodeURIComponent(currentSearch)}`;
+      if (inStockOnly) url += `&in_stock=1`;
       const { products, total } = await api.get(url);
       if (Router.stale(_gen)) return;
       currentSort = sort;
@@ -400,6 +425,8 @@ Router.register('/products', async (params) => {
             currentCat = '';
             currentSearch = '';
             currentPage = 1;
+            inStockOnly = false;
+            buildStockChip();
             const search = document.getElementById('search-box');
             if (search) search.value = '';
             buildCatFilter(allCats, '');

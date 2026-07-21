@@ -542,7 +542,11 @@ function productCard(p) {
   const stock = Number(p.stock || 0);
   const hasVariants = !!p.has_variants;
   const customPrint = !!p.allow_custom_print;
-  const outOfStock = stockKnown && stock <= 0;
+  // Prefer the API's variant-aware availability flag when present (a clothing
+  // item is in stock if ANY size/colour has stock, whatever p.stock says).
+  const outOfStock = (p.in_stock !== undefined && p.in_stock !== null)
+    ? !Number(p.in_stock)
+    : (stockKnown && stock <= 0);
   const lowStock = stockKnown && !outOfStock && !hasVariants && stock > 0 && stock <= 5;
   const canQuickAdd = stockKnown && stock > 0 && !hasVariants && !customPrint;
   const quickPayload = { id: p.id, name: p.name, price: p.price, images: [img], stock, has_variants: hasVariants, allow_custom_print: customPrint };
