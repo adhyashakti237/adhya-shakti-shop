@@ -185,7 +185,7 @@ Router.register('/product/:id', async (params) => {
             ${p.category_name ? `<a href="/products?category=${p.category_id}" data-link>${esc(p.category_name)}</a><span class="sep">/</span>` : ''}
             <span>${esc(p.name)}</span>
           </div>
-          <div class="product-detail mt-24">
+          <div class="product-detail product-detail-boutique mt-24">
             <div class="product-images">
               <div class="main-img" id="main-img-wrap">
                 <div class="main-img-track" id="main-img-track">
@@ -202,13 +202,16 @@ Router.register('/product/:id', async (params) => {
               </div>` : ''}
             </div>
             <div class="product-detail-info">
-              <div class="text-muted text-sm mb-8">${esc(p.category_name || '')}</div>
+              <div class="product-detail-eyebrow">
+                ${p.category_name ? `<a href="/products?category=${p.category_id}" data-link><i class="fas ${categoryIcon(p.category_name)}"></i>${esc(p.category_name)}</a>` : '<span>Adhya Shakti Shop</span>'}
+                ${unavailable ? '<span class="product-detail-stock out">Out of stock</span>' : '<span class="product-detail-stock in">In stock</span>'}
+              </div>
               <h1 style="font-size:1.6rem;font-weight:800;margin-bottom:12px">${esc(p.name)}</h1>
               <div class="product-rating mb-16">
                 <span class="stars">${avgRating > 0 ? '★'.repeat(Math.round(avgRating)) + '☆'.repeat(5-Math.round(avgRating)) : '☆☆☆☆☆'}</span>
                 <span>${avgRating > 0 ? avgRating : 'No'} ratings (${p.reviews?.length || 0} reviews)</span>
               </div>
-              <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px">
+              <div class="product-detail-price-row" style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px">
                 <span class="price-big">${fmt(p.price)}</span>
                 ${p.compare_price > p.price ? `<span class="price-old" style="font-size:1.1rem">${fmt(p.compare_price)}</span>
                   <span class="badge badge-success">${discount}% OFF</span>` : ''}
@@ -346,7 +349,7 @@ Router.register('/product/:id', async (params) => {
                 </div>
               </div>` : ''}
 
-              <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap">
+              <div class="product-detail-actions" style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap">
                 ${unavailable
                   ? `<button class="btn btn-lg" disabled style="background:#eee;color:#999;border:1px solid #ddd;cursor:not-allowed;opacity:1"><i class="fas fa-clock"></i> Out of Stock</button>`
                   : `<button class="btn btn-primary btn-lg" id="atc-btn" data-csp-onclick="addToCartDetail()"><i class="fas fa-cart-plus"></i> ${hasVariants ? 'Select Color & Size' : 'Add to Cart'}</button>

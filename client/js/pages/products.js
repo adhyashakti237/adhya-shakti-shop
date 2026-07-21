@@ -28,16 +28,26 @@ Router.register('/products', async (params) => {
             <p id="products-subtitle">Browse jewelry, clothing, custom items, and gifts from Adhya Shakti Shop.</p>
           </div>
         </div>
-        <div id="cat-filter-bar" class="cat-pill-bar"></div>
-        <div id="stock-chip-bar" class="price-chips"></div>
-        <div class="filter-bar">
-          <select id="sort-filter" data-csp-onchange="applyFilters()">
-            <option value="newest">Newest First</option>
-            <option value="price_asc">Price: Low to High</option>
-            <option value="price_desc">Price: High to Low</option>
-          </select>
-          <input type="text" id="search-box" class="form-control" style="max-width:260px" placeholder="Search products..." value="${params.search || ''}" data-csp-onkeydown="if(event.key==='Enter')applyFilters()" />
-          <span class="results-count" id="results-count"></span>
+        <div class="shop-filter-shell">
+          <div class="shop-filter-head">
+            <div>
+              <span>Browse collection</span>
+              <small>Filter by category, stock, search, or newest arrivals.</small>
+            </div>
+          </div>
+          <div id="cat-filter-bar" class="cat-pill-bar"></div>
+          <div class="shop-filter-row">
+            <div id="stock-chip-bar" class="price-chips"></div>
+            <div class="filter-bar">
+              <select id="sort-filter" data-csp-onchange="applyFilters()" aria-label="Sort products">
+                <option value="newest">Newest First</option>
+                <option value="price_asc">Price: Low to High</option>
+                <option value="price_desc">Price: High to Low</option>
+              </select>
+              <input type="text" id="search-box" class="form-control" style="max-width:260px" placeholder="Search products..." value="${params.search || ''}" data-csp-onkeydown="if(event.key==='Enter')applyFilters()" aria-label="Search products" />
+              <span class="results-count" id="results-count"></span>
+            </div>
+          </div>
         </div>
         <div id="shop-context-panel" class="shop-context-panel" style="display:none"></div>
         <div id="products-grid" class="grid-4"><div class="spinner"></div></div>
@@ -132,7 +142,7 @@ Router.register('/products', async (params) => {
     if (currentSearch) active.push(`<span><i class="fas fa-search"></i>${esc(currentSearch)}</span>`);
     const totalText = total === null ? 'Products update as you shop.' : `${total} product${total === 1 ? '' : 's'} available.`;
     const desc = cat ? categoryDescription(cat, total) : 'Browse jewelry, clothing, custom items, and gifts with secure checkout and support from a small New Jersey shop.';
-    panel.style.display = 'none';
+    panel.style.display = (cat || currentSearch) ? 'grid' : 'none';
     panel.innerHTML = `
       <div class="shop-context-copy">
         <div class="shop-context-title">${cat ? esc(cat.path_label || cat.name) : 'Shop With Confidence'}</div>
