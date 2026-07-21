@@ -117,9 +117,15 @@ function renderNavbar() {
           <button class="mobile-search-btn" data-csp-onclick="doNavSearch('m-search-input')" aria-label="Search products"><i class="fas fa-search"></i></button>
           <div class="nav-search-results" id="m-search-results" role="listbox" hidden></div>
         </div>
-        <div class="nav-collection-item" data-nav-root="jewelry"><a href="/jewelry" data-link class="nav-collection-link">Jewelry</a></div>
-        <div class="nav-collection-item" data-nav-root="clothing"><a href="/clothing" data-link class="nav-collection-link">Clothing</a></div>
-        <div class="nav-collection-item" data-nav-root="custom"><a href="/custom-printing" data-link class="nav-collection-link">Custom</a></div>
+        <div class="nav-collection-item" data-nav-root="jewelry">
+          <a href="/jewelry" data-link class="nav-collection-link"><span><i class="fas fa-gem"></i>Jewelry</span></a>
+        </div>
+        <div class="nav-collection-item" data-nav-root="clothing">
+          <a href="/clothing" data-link class="nav-collection-link"><span><i class="fas fa-tshirt"></i>Clothing</span></a>
+        </div>
+        <div class="nav-collection-item" data-nav-root="custom">
+          <a href="/custom-printing" data-link class="nav-collection-link"><span><i class="fas fa-print"></i>Custom</span></a>
+        </div>
         <div class="mobile-drawer-actions">
           <a href="/wishlist" data-link class="mobile-drawer-link">
             <i class="fas fa-heart"></i><span>Wishlist</span>
@@ -234,14 +240,14 @@ function buildCollectionNav() {
     if (Router.stale(navGen)) return;
     const roots = activeCategoryTree(categoryTree);
     const rootFor = {
-      jewelry: roots.find(r => /jewel/i.test(r.name || '')),
-      clothing: roots.find(r => /^clothing$/i.test(r.name || '')),
-      custom: roots.find(r => /custom/i.test(r.name || '')),
+      jewelry: roots.find(r => /jewel/i.test(r.name || '')) || { name: 'Jewelry', children: [] },
+      clothing: roots.find(r => /^clothing$/i.test(r.name || '')) || { name: 'Clothing', children: [] },
+      custom: roots.find(r => /custom/i.test(r.name || '')) || { name: 'Custom', children: [] },
     };
 
     Object.entries(rootFor).forEach(([key, root]) => {
       const shell = document.querySelector(`.nav-collection-item[data-nav-root="${key}"]`);
-      if (!shell || !root) return;
+      if (!shell) return;
       const href = collectionPath(root);
       const label = collectionLabel(root);
       const children = categoryChildren(root).filter(c => c && c.is_active !== 0);
