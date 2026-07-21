@@ -74,6 +74,21 @@ def run_step(name: str, command: list[str], out_dir: Path, env: dict) -> dict:
     }
 
 
+def script_supports_arg(script: str, option: str) -> bool:
+    try:
+        proc = subprocess.run(
+            [sys.executable, script, "--help"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=10,
+        )
+    except Exception:
+        return False
+    return option in (proc.stdout or "")
+
+
 def discover_js_targets() -> list[str]:
     targets = []
     for base in [ROOT / "client" / "js", ROOT / "client" / "accounts" / "js"]:
@@ -214,18 +229,21 @@ def main() -> int:
     ))
 
     if not args.skip_smoke:
+        smoke_cmd = [
+            sys.executable,
+            "scripts/website_smoke_audit.py",
+            "--base",
+            args.base,
+            "--timeout",
+            str(args.timeout),
+        ]
+        if script_supports_arg("scripts/website_smoke_audit.py", "--warn-seconds"):
+            smoke_cmd.extend(["--warn-seconds", str(args.warn_seconds)])
+        else:
+            print("WARN website_smoke_audit.py does not support --warn-seconds; running without timing warning option")
         summary["steps"].append(run_step(
             "website_smoke",
-            [
-                sys.executable,
-                "scripts/website_smoke_audit.py",
-                "--base",
-                args.base,
-                "--timeout",
-                str(args.timeout),
-                "--warn-seconds",
-                str(args.warn_seconds),
-            ],
+            smoke_cmd,
             out_dir,
             env,
         ))
