@@ -67,6 +67,8 @@ function renderNavbar() {
       </div>`
     : `<a href="/login" data-link class="btn btn-sm btn-outline">Login</a>
        <a href="/register" data-link class="btn btn-sm btn-primary">Register</a>`;
+  const mobileAccountHref = user ? '/dashboard' : '/login';
+  const mobileAccountLabel = user ? 'Open account' : 'Login';
 
   existing.innerHTML = `
     ${!annDismissed ? `<div class="announcement-bar" id="announcement-bar"><i class="fas fa-truck"></i>&ensp;Free shipping on orders over $49 — <a href="/products" data-link>Shop Now →</a><button class="ann-close" data-csp-onclick="sessionStorage.setItem('ann_dismissed','1');this.closest('.announcement-bar').style.display='none';document.documentElement.style.setProperty('--nav-h','64px')" aria-label="Close">×</button></div>` : ''}
@@ -80,10 +82,18 @@ function renderNavbar() {
         <button class="search-btn" data-csp-onclick="doNavSearch()" aria-label="Search"><i class="fas fa-search"></i></button>
         <div class="nav-search-results" id="nav-search-results" role="listbox" hidden></div>
       </div>
-      <a href="/cart" data-link class="mobile-header-cart ${Cart.count() ? 'visible' : ''}" aria-label="Open cart" aria-hidden="${Cart.count() ? 'false' : 'true'}" tabindex="${Cart.count() ? '0' : '-1'}">
-        <i class="fas fa-shopping-cart"></i>
-        <span class="mobile-cart-count" style="display:${Cart.count() ? 'flex' : 'none'}">${Cart.count()}</span>
-      </a>
+      <div class="mobile-header-actions" aria-label="Quick actions">
+        <button class="mobile-header-icon" type="button" data-csp-onclick="openMobileSearch()" aria-label="Search products"><i class="fas fa-search"></i></button>
+        <a href="/wishlist" data-link class="mobile-header-icon" aria-label="Open wishlist">
+          <i class="fas fa-heart"></i>
+          <span class="mobile-action-count wishlist-count" aria-label="${Wishlist.count()} items in wishlist" style="display:${Wishlist.count() ? 'flex' : 'none'}">${Wishlist.count()}</span>
+        </a>
+        <a href="/cart" data-link class="mobile-header-icon mobile-header-cart visible" aria-label="Open cart">
+          <i class="fas fa-shopping-bag"></i>
+          <span class="mobile-action-count mobile-cart-count cart-count" aria-label="${Cart.count()} items in cart" style="display:${Cart.count() ? 'flex' : 'none'}">${Cart.count()}</span>
+        </a>
+        <a href="${mobileAccountHref}" data-link class="mobile-header-icon" aria-label="${mobileAccountLabel}"><i class="fas fa-user"></i></a>
+      </div>
       <button class="hamburger" id="hamburger-btn" aria-label="Toggle menu" aria-controls="nav-links" aria-expanded="false">
         <span></span><span></span><span></span>
       </button>
@@ -134,6 +144,10 @@ function renderNavbar() {
     hamburgerEl?.setAttribute('aria-expanded', open ? 'true' : 'false');
     document.body.classList.toggle('mobile-nav-open', !!open && window.innerWidth <= MOBILE_NAV_MAX);
   }
+  window.openMobileSearch = function openMobileSearch() {
+    setMobileNavOpen(true);
+    setTimeout(() => document.getElementById('m-search-input')?.focus(), 40);
+  };
 
   if (!window._mobileNavResizeBound) {
     window._mobileNavResizeBound = true;
@@ -441,41 +455,34 @@ function renderFooter() {
         <div class="footer-brand">
           <h2 style="font-family:Georgia,serif">Adhya <span style="color:var(--gold)">Shakti</span> Shop</h2>
           <div style="font-size:.68rem;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.38);margin-bottom:14px;font-weight:600">Est. 2026 &nbsp;&bull;&nbsp; New Jersey, USA</div>
-          <p>Your destination for handcrafted jewelry and custom-printed clothing. Based in New Jersey, USA — shipping nationwide.</p>
-          <div class="social-links" style="align-items:flex-start">
-            <a href="https://www.facebook.com/profile.php?id=61590793342693" target="_blank" rel="noopener noreferrer" class="social-link" title="Facebook"><i class="fab fa-facebook-f"></i></a>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
-              <a href="https://www.instagram.com/adhyashaktijewelry?igsh=MXZkbDQ2cnNhNGhrbw==" target="_blank" rel="noopener noreferrer" class="social-link" title="Instagram — Jewellery"><i class="fab fa-instagram"></i></a>
-              <span style="font-size:.5rem;color:rgba(255,255,255,.4);letter-spacing:.5px;text-transform:uppercase">Jewelry</span>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
-              <a href="https://www.instagram.com/adhyashaktiprinting" target="_blank" rel="noopener noreferrer" class="social-link" title="Instagram — Printing"><i class="fab fa-instagram"></i></a>
-              <span style="font-size:.5rem;color:rgba(255,255,255,.4);letter-spacing:.5px;text-transform:uppercase">Printing</span>
-            </div>
-            <a href="https://wa.me/c/18483363769" target="_blank" rel="noopener noreferrer" class="social-link" title="WhatsApp Catalog"><i class="fab fa-whatsapp"></i></a>
+          <p>Handcrafted jewelry, selected clothing, and custom printing from New Jersey. Clean shopping, clear support, and nationwide shipping.</p>
+          <div class="social-links footer-social-stack">
+            <a href="https://www.instagram.com/adhyashaktijewelry?igsh=MXZkbDQ2cnNhNGhrbw==" target="_blank" rel="noopener noreferrer" class="social-link" title="Instagram Jewelry" aria-label="Instagram Jewelry"><i class="fab fa-instagram"></i><span>Jewelry</span></a>
+            <a href="https://www.instagram.com/adhyashaktiprinting" target="_blank" rel="noopener noreferrer" class="social-link" title="Instagram Printing" aria-label="Instagram Printing"><i class="fab fa-instagram"></i><span>Printing</span></a>
+            <a href="https://wa.me/c/18483363769" target="_blank" rel="noopener noreferrer" class="social-link" title="WhatsApp Catalog" aria-label="WhatsApp Catalog"><i class="fab fa-whatsapp"></i><span>WhatsApp</span></a>
           </div>
         </div>
         <div class="footer-col">
-          <h4>Quick Links</h4>
-          <a href="/" data-link>Home</a>
-          <a href="/jewelry" data-link>Jewelry</a>
+          <h4>Shop</h4>
+          <a href="/products" data-link>All Products</a>
+          <a href="/products" data-link>Jewelry</a>
           <a href="/clothing" data-link id="footer-link-clothing">Clothing</a>
           <a href="/custom-printing" data-link id="footer-link-custom">Custom Printing</a>
           <a href="/bulk-orders" data-link>Bulk Orders</a>
-          <a href="/coming-soon" data-link>Coming Soon</a>
-          <a href="/about" data-link>About Us</a>
-          <a href="/contact" data-link>Contact Us</a>
         </div>
         <div class="footer-col">
-          <h4>Help & Policies</h4>
-          <a href="/faq" data-link>FAQ</a>
+          <h4>Help</h4>
           <a href="/track-order" data-link>Track Your Order</a>
+          <a href="/contact" data-link>Contact Support</a>
+          <a href="/faq" data-link>FAQ</a>
+          <a href="/refund" data-link>Returns & Refunds</a>
           <a href="/terms" data-link>Terms & Conditions</a>
           <a href="/privacy" data-link>Privacy Policy</a>
-          <a href="/refund" data-link>Return, Refund & Cancel Policy</a>
         </div>
         <div class="footer-col">
-          <h4>Contact</h4>
+          <h4>About</h4>
+          <a href="/" data-link>Home</a>
+          <a href="/about" data-link>Our Story</a>
           <a href="mailto:contact@adhyashaktishop.com"><i class="fas fa-envelope" style="margin-right:6px"></i>contact@adhyashaktishop.com</a>
           <a href="https://www.google.com/maps/search/?api=1&query=New+Jersey+USA" target="_blank" rel="noopener noreferrer"><i class="fas fa-map-marker-alt" style="margin-right:6px"></i>New Jersey, USA</a>
           <a href="https://wa.me/c/18483363769" target="_blank" rel="noopener noreferrer"><i class="fab fa-whatsapp" style="margin-right:6px"></i>WhatsApp Catalog</a>
@@ -549,6 +556,7 @@ function productCard(p) {
     : (stockKnown && stock <= 0);
   const lowStock = stockKnown && !outOfStock && !hasVariants && stock > 0 && stock <= 5;
   const canQuickAdd = stockKnown && stock > 0 && !hasVariants && !customPrint;
+  const categoryLabel = p.category_name || p.category || p.category_label || '';
   const quickPayload = { id: p.id, name: p.name, price: p.price, images: [img], stock, has_variants: hasVariants, allow_custom_print: customPrint };
   return `
     <a class="product-card" href="/product/${p.id}" data-link>
@@ -573,6 +581,7 @@ function productCard(p) {
       </div>
       <div class="product-info">
         ${lowStock ? `<div class="low-stock-badge"><i class="fas fa-exclamation-circle"></i> Only ${p.stock} left!</div>` : ''}
+        ${categoryLabel ? `<div class="product-category-label">${esc(categoryLabel)}</div>` : ''}
         <div class="product-name">${esc(p.name)}</div>
         ${p.avg_rating > 0 ? `<div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;font-size:.75rem">
           <span style="color:#f59e0b">${'★'.repeat(Math.round(p.avg_rating))}${'☆'.repeat(5-Math.round(p.avg_rating))}</span>
