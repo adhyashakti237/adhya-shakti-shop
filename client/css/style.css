@@ -271,6 +271,9 @@ button.mobile-header-icon {
   .nav-links .nav-collection-item {
     display: flex;
   }
+  .nav-links .nav-collection-item:first-of-type {
+    margin-left: 12px;
+  }
   .nav-links .nav-collection-item:hover .nav-collection-chevron {
     transform: rotate(180deg);
   }
