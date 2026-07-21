@@ -255,6 +255,80 @@ Router.register('/products', async (params) => {
     return out;
   }
 
+  function hasActiveDescendant(node, activeCat) {
+    if (!node || !activeCat) return false;
+    return categoryChildren(node).some(child => child.id === activeCat || hasActiveDescendant(child, activeCat));
+  }
+
+  function availableChildren(node, activeCat) {
+    return categoryChildren(node)
+      .filter(child => child && child.id && (
+        categorySubtreeCount(child) > 0 ||
+        child.id === activeCat ||
+        hasActiveDescendant(child, activeCat)
+      ));
+  }
+
+  function closeCategoryFlyouts(except = null) {
+    document.querySelectorAll('.cat-pill-group.open').forEach(el => {
+      if (el !== except) {
+        el.classList.remove('open');
+        el.querySelector('.cat-pill')?.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+
+  function chooseCategory(id, cats) {
+    currentCat = id || '';
+    currentPage = 1;
+    closeCategoryFlyouts();
+    loadProducts({ scrollTop: true });
+    buildCatFilter(cats, currentCat);
+  }
+
+  function appendFlyoutButton(parent, cats, { id, label, active, className = 'cat-pill-flyout-item', icon = '' }) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = className + (active ? ' active' : '');
+    item.innerHTML = `${icon ? `<i class="fas ${icon}"></i>` : ''}<span>${esc(label)}</span>`;
+    item.onclick = e => {
+      e.stopPropagation();
+      chooseCategory(id, cats);
+    };
+    parent.appendChild(item);
+    return item;
+  }
+
+  function appendFlyoutBranch(parent, cats, node, activeCat, depth = 0) {
+    const kids = availableChildren(node, activeCat);
+    if (!kids.length) {
+      appendFlyoutButton(parent, cats, {
+        id: node.id,
+        label: node.name,
+        active: activeCat === node.id,
+        className: depth ? 'cat-pill-flyout-child' : 'cat-pill-flyout-item',
+        icon: categoryIcon(node.name),
+      });
+      return;
+    }
+
+    const section = document.createElement('div');
+    section.className = 'cat-pill-flyout-section';
+    appendFlyoutButton(section, cats, {
+      id: node.id,
+      label: node.name,
+      active: activeCat === node.id,
+      className: 'cat-pill-flyout-parent',
+      icon: categoryIcon(node.name),
+    });
+
+    const childBox = document.createElement('div');
+    childBox.className = 'cat-pill-flyout-children';
+    kids.forEach(child => appendFlyoutBranch(childBox, cats, child, activeCat, depth + 1));
+    section.appendChild(childBox);
+    parent.appendChild(section);
+  }
+
   function updatePageIntro(total = null) {
     const titleEl = document.getElementById('products-title');
     const subEl = document.getElementById('products-subtitle');
@@ -288,71 +362,73 @@ Router.register('/products', async (params) => {
     if (!bar) return;
     bar.innerHTML = '';
 
+    if (!window.__productCatFlyoutBound) {
+      window.__productCatFlyoutBound = true;
+      document.addEventListener('click', e => {
+        if (!e.target.closest('.cat-pill-bar')) closeCategoryFlyouts();
+      });
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeCategoryFlyouts();
+      });
+    }
+
     // All button
     const allBtn = document.createElement('button');
+    allBtn.type = 'button';
     allBtn.className = 'cat-pill' + (!activeCat ? ' active' : '');
     allBtn.textContent = 'All';
-    allBtn.onclick = () => { currentCat = ''; currentPage = 1; loadProducts({ scrollTop: true }); buildCatFilter(cats, ''); };
+    allBtn.setAttribute('aria-pressed', !activeCat ? 'true' : 'false');
+    allBtn.onclick = () => chooseCategory('', cats);
     bar.appendChild(allBtn);
 
     categoryGroups().forEach(group => {
       const headId = group.typeId;
       if (!headId) return;
 
-      const availSubs = group.subs
-        .filter(s => s.id && (categorySubtreeCount(s.node) > 0 || s.id === activeCat));
+      const availChildren = availableChildren(group.node, activeCat);
 
       // Hide categories with no live products (unless it's the currently active filter).
-      if (categorySubtreeCount(group.node) === 0 && headId !== activeCat && !availSubs.length) return;
+      if (categorySubtreeCount(group.node) === 0 && headId !== activeCat && !availChildren.length) return;
 
-      const isGroupActive = activeCat === headId || availSubs.some(s => s.id === activeCat);
+      const isGroupActive = activeCat === headId || hasActiveDescendant(group.node, activeCat);
       const wrap = document.createElement('div');
       wrap.className = 'cat-pill-group';
 
       const btn = document.createElement('button');
+      btn.type = 'button';
       btn.className = 'cat-pill' + (isGroupActive ? ' active' : '');
       btn.innerHTML = `<i class="fas ${group.icon}" style="font-size:.75rem"></i> ${group.label}` +
-        (availSubs.length ? ` <i class="fas fa-chevron-down" style="font-size:.6rem;opacity:.65"></i>` : '');
+        (availChildren.length ? ` <i class="fas fa-chevron-down" style="font-size:.6rem;opacity:.65"></i>` : '');
+      btn.setAttribute('aria-pressed', isGroupActive ? 'true' : 'false');
+      if (availChildren.length) {
+        btn.setAttribute('aria-haspopup', 'true');
+        btn.setAttribute('aria-expanded', 'false');
+      }
       btn.onclick = () => {
-        if (availSubs.length && window.innerWidth <= 900) {
+        if (availChildren.length && window.innerWidth <= 900) {
           const wasOpen = wrap.classList.contains('open');
-          bar.querySelectorAll('.cat-pill-group.open').forEach(el => { if (el !== wrap) el.classList.remove('open'); });
+          closeCategoryFlyouts(wrap);
           wrap.classList.toggle('open', !wasOpen);
+          btn.setAttribute('aria-expanded', !wasOpen ? 'true' : 'false');
           return;
         }
-        currentCat = headId; currentPage = 1; loadProducts({ scrollTop: true }); buildCatFilter(cats, headId);
+        chooseCategory(headId, cats);
       };
       wrap.appendChild(btn);
 
-      if (availSubs.length) {
+      if (availChildren.length) {
         const flyout = document.createElement('div');
         flyout.className = 'cat-pill-flyout';
         // "All <group>" entry so mobile users (where tapping the pill only opens
         // this flyout) can still filter by the whole parent category.
-        const allItem = document.createElement('button');
-        allItem.className = 'cat-pill-flyout-item' + (activeCat === headId ? ' active' : '');
-        allItem.innerHTML = `<strong>All ${esc(group.label)}</strong>`;
-        allItem.onclick = e => {
-          e.stopPropagation();
-          currentCat = headId;
-          currentPage = 1;
-          loadProducts({ scrollTop: true });
-          buildCatFilter(cats, headId);
-        };
-        flyout.appendChild(allItem);
-        availSubs.forEach(sub => {
-          const item = document.createElement('button');
-          item.className = 'cat-pill-flyout-item' + (activeCat === sub.id ? ' active' : '');
-          item.textContent = sub.label;
-          item.onclick = e => {
-            e.stopPropagation();
-            currentCat = sub.id;
-            currentPage = 1;
-            loadProducts({ scrollTop: true });
-            buildCatFilter(cats, sub.id);
-          };
-          flyout.appendChild(item);
+        appendFlyoutButton(flyout, cats, {
+          id: headId,
+          label: `All ${group.label}`,
+          active: activeCat === headId,
+          className: 'cat-pill-flyout-item cat-pill-flyout-all',
+          icon: group.icon,
         });
+        availChildren.forEach(child => appendFlyoutBranch(flyout, cats, child, activeCat));
         wrap.appendChild(flyout);
       }
 
