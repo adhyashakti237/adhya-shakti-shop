@@ -14,8 +14,8 @@ Router.register('/wishlist', async () => {
           <h1>Your wishlist is empty</h1>
           <p>Save products you love and come back when you are ready to choose color, size, or place an order.</p>
           <div class="wishlist-empty-actions">
-            <a href="/products" data-link class="btn btn-primary"><i class="fas fa-store"></i> Browse Products</a>
-            <a href="/clothing" data-link class="btn btn-outline"><i class="fas fa-shirt"></i> Clothing</a>
+            <a href="/products" data-link class="btn btn-primary"><i class="fas fa-store"></i> Shop All Products</a>
+            <a href="/clothing" data-link class="btn btn-outline"><i class="fas fa-tshirt"></i> Clothing</a>
             <a href="/jewelry" data-link class="btn btn-outline"><i class="fas fa-gem"></i> Jewelry</a>
           </div>
         </div>

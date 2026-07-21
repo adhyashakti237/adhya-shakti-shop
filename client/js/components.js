@@ -110,6 +110,9 @@ function renderNavbar() {
             <span class="nav-cat-loading" style="display:block;padding:14px 20px;font-size:.82rem;color:var(--text-light)"><i class="fas fa-spinner fa-spin"></i> Loading...</span>
           </div>
         </div>
+        <a href="/jewelry" data-link class="nav-collection-link">Jewelry</a>
+        <a href="/clothing" data-link class="nav-collection-link">Clothing</a>
+        <a href="/custom-printing" data-link class="nav-collection-link">Custom</a>
         <a href="/about" data-link>About Us</a>
         <a href="/contact" data-link>Contact</a>
         <a href="/wishlist" data-link class="cart-badge nav-action-link" aria-label="Open wishlist" title="Wishlist">

@@ -45,7 +45,7 @@ Router.register('/cart', async () => {
           <h1>Your cart is empty</h1>
           <p>Choose a product, select the available color and size if needed, then add it here for secure checkout.</p>
           <div class="cart-empty-actions">
-            <a href="/products" data-link class="btn btn-primary"><i class="fas fa-store"></i> Browse Products</a>
+            <a href="/products" data-link class="btn btn-primary"><i class="fas fa-store"></i> Shop All Products</a>
             <a href="/jewelry" data-link class="btn btn-outline"><i class="fas fa-gem"></i> Jewelry</a>
             <a href="/wishlist" data-link class="btn btn-outline"><i class="fas fa-heart"></i> Wishlist</a>
           </div>
