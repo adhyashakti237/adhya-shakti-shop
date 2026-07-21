@@ -299,6 +299,7 @@ function showCartAddFeedback(product, qty) {
   clearTimeout(box._hideTimer);
   box._hideTimer = setTimeout(() => box.classList.remove('visible'), 4500);
 }
+window.showCartAddFeedback = showCartAddFeedback;
 
 function quickAddQtyForKey(key) {
   return Cart.get().find(i => i.key === key)?.qty || 0;
@@ -531,6 +532,12 @@ function productCard(p) {
           data-csp-onclick="event.preventDefault();event.stopPropagation();quickAddToCart(this)"
           aria-label="Add ${esc(p.name)} to cart" title="Add to cart">
           <i class="fas fa-cart-plus"></i>
+        </div>` : (hasVariants || customPrint || !stockKnown || outOfStock) ? `<div class="product-option-overlay" role="button" tabindex="0"
+          data-csp-onclick="event.preventDefault();event.stopPropagation();Router.navigate('/product/${encodeURIComponent(p.id)}')"
+          aria-label="${outOfStock ? 'Open product for back in stock notification' : hasVariants ? 'Open product to choose color and size' : customPrint ? 'Open product to customize print' : 'Open product options'}"
+          title="${outOfStock ? 'Notify me' : hasVariants ? 'Choose options' : customPrint ? 'Customize' : 'View options'}">
+          <i class="fas ${outOfStock ? 'fa-bell' : hasVariants ? 'fa-palette' : customPrint ? 'fa-print' : 'fa-eye'}"></i>
+          <span>${outOfStock ? 'Notify' : hasVariants ? 'Options' : customPrint ? 'Custom' : 'View'}</span>
         </div>` : ''}
         ${outOfStock ? `<span class="product-badge-tag out-stock-badge">Out of Stock</span>`
           : p.is_bestseller ? `<span class="product-badge-tag bestseller-badge"><i class="fas fa-fire"></i> Bestseller</span>`
@@ -549,8 +556,8 @@ function productCard(p) {
           ${p.compare_price > p.price ? `<span class="price-old">${fmt(p.compare_price)}</span>` : ''}
           ${discount ? `<span class="price-discount">${discount}% off</span>` : ''}
         </div>
-        ${hasVariants ? `<div class="product-option-note"><i class="fas fa-palette"></i> Color/size options</div>`
-          : customPrint ? `<div class="product-option-note"><i class="fas fa-print"></i> Custom print options</div>`
+        ${hasVariants ? `<div class="product-option-note"><i class="fas fa-palette"></i> Choose color & size</div>`
+          : customPrint ? `<div class="product-option-note"><i class="fas fa-print"></i> Customize print</div>`
           : !stockKnown ? `<div class="product-option-note"><i class="fas fa-circle-info"></i> Open for options</div>` : ''}
       </div>
     </a>`;

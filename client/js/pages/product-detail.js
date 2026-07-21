@@ -888,7 +888,13 @@ Router.register('/product/:id', async (params) => {
         back_images: [...printImages.back],
         extra_charge: printPlacement === 'both' ? 8.99 : 0,
       } : null;
-      Cart.add(p, qty, variation, customPrint);
+      const key = Cart.add(p, qty, variation, customPrint, { silent: true });
+      const savedQty = Cart.get().find(i => i.key === key)?.qty || qty;
+      if (typeof window.showCartAddFeedback === 'function') {
+        window.showCartAddFeedback(p, savedQty);
+      } else {
+        toast('Added to cart!', 'success');
+      }
       return true;
     };
 

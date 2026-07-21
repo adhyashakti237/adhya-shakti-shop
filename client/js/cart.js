@@ -82,7 +82,11 @@ const Cart = {
     if (idx >= 0) { if (qty <= 0) items.splice(idx, 1); else items[idx].qty = qty; }
     this.save(items);
   },
-  clear() { localStorage.removeItem('cart'); this.updateBadge(); },
+  clear() {
+    localStorage.removeItem('cart');
+    this.updateBadge();
+    window.dispatchEvent(new CustomEvent('cart:updated', { detail: { count: 0 } }));
+  },
   total() { return this.get().reduce((s, i) => s + i.price * i.qty, 0); },
   count() { return this.get().reduce((s, i) => s + i.qty, 0); },
   updateBadge() {

@@ -700,6 +700,30 @@ button.mobile-header-icon {
 }
 .product-quickadd-overlay:hover { transform: scale(1.1); background: var(--primary-dark); }
 .product-quickadd-overlay.added { background: #16a34a; }
+.product-option-overlay {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 2;
+  min-height: 38px;
+  max-width: calc(100% - 16px);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 999px;
+  background: rgba(15,61,51,.94);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  font-size: .74rem;
+  font-weight: 850;
+  box-shadow: 0 8px 22px rgba(14,45,35,.24);
+  cursor: pointer;
+  transition: transform .15s, background .15s;
+}
+.product-option-overlay:hover { transform: scale(1.04); background: var(--primary-dark); }
+.product-option-overlay i { font-size: .76rem; }
 .product-quickadd-overlay.stepper {
   width: auto;
   min-width: 104px;
@@ -777,6 +801,7 @@ button.mobile-header-icon {
 @media (max-width: 900px) {
   .product-quickadd-overlay { width: 40px; height: 40px; }
   .product-quickadd-overlay.stepper { min-width: 112px; height: 40px; }
+  .product-option-overlay { min-height: 34px; padding: 0 9px; font-size: .68rem; }
 }
 
 /* ── Hero / Slider ────────────────────────────────────────── */
@@ -4187,6 +4212,15 @@ body:has(.sticky-atc.visible) .back-to-top { display: none; }
     right: 8px !important;
     bottom: 8px !important;
     font-size: .78rem !important;
+  }
+  .product-option-overlay {
+    min-height: 32px;
+    right: 7px;
+    bottom: 7px;
+    gap: 5px;
+    padding: 0 8px;
+    font-size: .62rem;
+    letter-spacing: 0;
   }
   .product-badge-tag,
   .product-badge {

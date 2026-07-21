@@ -33,7 +33,7 @@ Router.register('/wishlist', async () => {
     fillProductRail('empty-wishlist-products', {
       includeRecent: true,
       fallbackNewest: true,
-      limit: 4,
+      limit: 6,
     });
     return;
   }
@@ -120,6 +120,6 @@ Router.register('/wishlist', async () => {
     excludeIds: items.map(i => i.id),
     includeRecent: true,
     fallbackNewest: true,
-    limit: 4,
+    limit: 6,
   });
 });

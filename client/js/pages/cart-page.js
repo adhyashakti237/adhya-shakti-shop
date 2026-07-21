@@ -69,7 +69,7 @@ Router.register('/cart', async () => {
       fillProductRail('empty-cart-products', {
         includeRecent: true,
         fallbackNewest: true,
-        limit: 4,
+        limit: 6,
       });
       return;
     }
@@ -184,7 +184,7 @@ Router.register('/cart', async () => {
       excludeIds: items.map(i => i.id),
       includeRecent: true,
       fallbackNewest: true,
-      limit: 4,
+      limit: 6,
     });
     document.getElementById('cart-items')?.addEventListener('click', handleCartClick);
     document.getElementById('cart-items')?.addEventListener('change', handleCartChange);
