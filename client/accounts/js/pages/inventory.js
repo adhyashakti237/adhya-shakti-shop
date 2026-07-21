@@ -6,29 +6,42 @@ function fmtQty(n){
 }
 
 Pages.inventory = async function(){
+  Inventory._q = Inventory._q || '';
   Layout.render('inventory', `
     <div class="page-head">
       <div><h1>Inventory</h1><div class="sub">Your items, stock &amp; prices — adding one creates the product &amp; a purchase</div></div>
       <button class="btn btn-primary btn-sm" id="addItemBtn"><i class="fa-solid fa-plus"></i> Add item</button>
     </div>
-    <div class="searchbar"><i class="fa-solid fa-magnifying-glass"></i>
-      <input class="input" id="itemSearch" placeholder="Search by name, SKU or category…"></div>
+    <div class="list-toolbar">
+      <div class="searchbar"><i class="fa-solid fa-magnifying-glass"></i>
+        <input class="input" id="itemSearch" value="${esc(Inventory._q)}" placeholder="Search by name, SKU or category…"></div>
+      <button class="btn btn-sm toolbar-clear" id="itemClearBtn"><i class="fa-solid fa-rotate-left"></i> Clear</button>
+    </div>
     <div id="itemList"><div class="empty"><span class="spinner"></span></div></div>`);
 
   document.getElementById('addItemBtn').onclick = () => Inventory.openForm(null);
   let timer;
   document.getElementById('itemSearch').oninput = e => {
     clearTimeout(timer);
-    timer = setTimeout(() => Inventory.load(e.target.value.trim()), 220);
+    Inventory._q = e.target.value.trim();
+    timer = setTimeout(() => Inventory.load(Inventory._q), 220);
   };
-  Inventory.load('');
+  document.getElementById('itemClearBtn').onclick = () => {
+    Inventory._q = '';
+    const input = document.getElementById('itemSearch');
+    if (input) input.value = '';
+    Inventory.load('');
+  };
+  Inventory.load(Inventory._q);
 };
 
 const Inventory = {
   _variants: [],
   _images: [],
+  _q: '',
 
   async load(q){
+    Inventory._q = q || '';
     const box = document.getElementById('itemList');
     if (!box) return;
     let items = [];
@@ -43,7 +56,9 @@ const Inventory = {
       </div></div>`;
       return;
     }
-    box.innerHTML = `<div class="card">${items.map(Inventory.row).join('')}</div>`;
+    box.innerHTML = `
+      <div class="list-meta"><span>${items.length} item${items.length === 1 ? '' : 's'} shown</span>${q ? `<b>Search: ${esc(q)}</b>` : '<b>All inventory</b>'}</div>
+      <div class="card">${items.map(Inventory.row).join('')}</div>`;
     box.querySelectorAll('[data-edit]').forEach(r =>
       r.onclick = () => Inventory.openForm(JSON.parse(r.getAttribute('data-edit'))));
   },

@@ -132,6 +132,20 @@ textarea{min-height:78px;resize:vertical}
 .searchbar{position:relative;margin-bottom:14px}
 .searchbar i{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted-2)}
 .searchbar input{padding-left:38px}
+.list-toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;margin-bottom:14px}
+.list-toolbar .searchbar{margin-bottom:0}
+.list-toolbar.tight{margin-bottom:0}
+.toolbar-clear{white-space:nowrap;height:44px}
+.filter-card{margin-bottom:12px}
+.filter-label{display:block;font-size:13px;font-weight:500;color:var(--muted);margin-bottom:6px}
+.list-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--muted);
+  font-size:12.5px;margin:0 2px 8px}
+.list-meta b{color:var(--green);font-weight:600}
+@media(max-width:560px){
+  .list-toolbar{grid-template-columns:1fr}
+  .toolbar-clear{width:100%}
+  .list-meta{align-items:flex-start;flex-direction:column;gap:2px}
+}
 
 /* ── Customer picker (searchable) ────────────────────────── */
 .cust-results{margin-top:6px}

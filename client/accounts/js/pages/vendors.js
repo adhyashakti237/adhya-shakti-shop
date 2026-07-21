@@ -6,16 +6,25 @@ Pages.vendors = async function(){
       <div><h1>Vendors</h1><div class="sub">Who you buy from &amp; how much you've spent</div></div>
       <button class="btn btn-primary btn-sm" id="addVenBtn"><i class="fa-solid fa-plus"></i> Add vendor</button>
     </div>
-    <div class="card card-pad" style="margin-bottom:12px">
-      <div class="field" style="margin-bottom:0">
-        <label>Search vendors</label>
-        <input class="input" id="venSearch" value="${esc(Vendors._q || '')}" placeholder="Company, contact, phone, email..." />
+    <div class="card card-pad filter-card">
+      <label class="filter-label">Search vendors</label>
+      <div class="list-toolbar tight">
+        <div class="searchbar"><i class="fa-solid fa-magnifying-glass"></i>
+          <input class="input" id="venSearch" value="${esc(Vendors._q || '')}" placeholder="Company, contact, phone, email..." />
+        </div>
+        <button class="btn btn-sm toolbar-clear" id="venClearBtn"><i class="fa-solid fa-rotate-left"></i> Clear</button>
       </div>
     </div>
     <div id="venList"><div class="empty"><span class="spinner"></span></div></div>`);
   document.getElementById('addVenBtn').onclick = () => Vendors.openForm(null);
   document.getElementById('venSearch').oninput = e => {
     Vendors._q = e.target.value || '';
+    Vendors.load(false);
+  };
+  document.getElementById('venClearBtn').onclick = () => {
+    Vendors._q = '';
+    const input = document.getElementById('venSearch');
+    if (input) input.value = '';
     Vendors.load(false);
   };
   Vendors.load();
@@ -41,7 +50,9 @@ const Vendors = {
         <p class="small">${q ? 'No vendors match this search.' : 'Add a vendor, then tag them on a purchase or expense.'}</p></div></div>`;
       return;
     }
-    box.innerHTML = `<div class="card">${vendors.map(Vendors.row).join('')}</div>`;
+    box.innerHTML = `
+      <div class="list-meta"><span>${vendors.length} vendor${vendors.length === 1 ? '' : 's'} shown</span>${q ? `<b>Search: ${esc(q)}</b>` : '<b>All vendors</b>'}</div>
+      <div class="card">${vendors.map(Vendors.row).join('')}</div>`;
     box.querySelectorAll('[data-ven]').forEach(r => r.onclick = () => Vendors.openDetail(r.getAttribute('data-ven')));
   },
 
