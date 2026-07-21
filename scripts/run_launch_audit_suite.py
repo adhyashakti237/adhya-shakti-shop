@@ -12,6 +12,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -73,12 +74,87 @@ def run_step(name: str, command: list[str], out_dir: Path, env: dict) -> dict:
     }
 
 
+def discover_js_targets() -> list[str]:
+    targets = []
+    for base in [ROOT / "client" / "js", ROOT / "client" / "accounts" / "js"]:
+        if not base.exists():
+            continue
+        for path in sorted(base.rglob("*.js")):
+            targets.append(rel(path))
+    return targets
+
+
+def run_js_syntax_step(out_dir: Path, env: dict) -> dict:
+    name = "javascript_syntax"
+    output_path = out_dir / f"{name}.txt"
+    node = shutil.which("node")
+    targets = discover_js_targets()
+    started = dt.datetime.now()
+    print(f"RUN {name}")
+    if not node:
+        output = "WARN node executable not found; skipped JavaScript syntax checks.\n"
+        output_path.write_text(output, encoding="utf-8")
+        markers = count_markers(output)
+        print(f"WARN {name}: node not found, skipped {len(targets)} files")
+        return {
+            "name": name,
+            "command": ["node", "--check", "<client js files>"],
+            "returncode": 0,
+            "ok": True,
+            "seconds": (dt.datetime.now() - started).total_seconds(),
+            "output_file": rel(output_path),
+            "checked_files": 0,
+            "skipped_files": len(targets),
+            **markers,
+        }
+
+    lines = [f"Node: {node}", f"Files: {len(targets)}"]
+    failures = []
+    for target in targets:
+        proc = subprocess.run(
+            [node, "--check", target],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        if proc.returncode == 0:
+            lines.append(f"PASS {target}")
+        else:
+            lines.append(f"FAIL {target}")
+            if proc.stdout:
+                lines.append(proc.stdout.rstrip())
+            failures.append(target)
+    if failures:
+        lines.append("FAILURES:")
+        lines.extend(f"- {target}" for target in failures)
+    output = "\n".join(lines) + "\n"
+    output_path.write_text(output, encoding="utf-8", errors="replace")
+    markers = count_markers(output)
+    ok = not failures
+    elapsed = (dt.datetime.now() - started).total_seconds()
+    print(f"{'PASS' if ok else 'FAIL'} {name}: checked {len(targets)} files, {len(failures)} failures, {elapsed:.1f}s")
+    return {
+        "name": name,
+        "command": [node, "--check", "<client js files>"],
+        "returncode": 0 if ok else 1,
+        "ok": ok,
+        "seconds": elapsed,
+        "output_file": rel(output_path),
+        "checked_files": len(targets),
+        "skipped_files": 0,
+        **markers,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base", default="http://127.0.0.1:5000", help="Local or live base URL to audit")
     parser.add_argument("--timeout", type=int, default=12)
     parser.add_argument("--warn-seconds", type=float, default=2.5)
     parser.add_argument("--out-dir", default="", help="Folder for suite output. Default: audit_reports/launch_suite_TIMESTAMP")
+    parser.add_argument("--skip-js", action="store_true", help="Skip JavaScript syntax checks")
     parser.add_argument("--skip-smoke", action="store_true", help="Skip public website smoke checks")
     parser.add_argument("--skip-performance", action="store_true", help="Skip performance/asset checks")
     parser.add_argument("--skip-launch", action="store_true", help="Skip launch confidence checks")
@@ -120,6 +196,9 @@ def main() -> int:
         out_dir,
         env,
     ))
+
+    if not args.skip_js:
+        summary["steps"].append(run_js_syntax_step(out_dir, env))
 
     if not args.skip_smoke:
         summary["steps"].append(run_step(
