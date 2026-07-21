@@ -578,7 +578,7 @@ function productCard(p) {
           aria-label="Add ${esc(p.name)} to cart" title="Add to cart">
           <i class="fas fa-cart-plus"></i>
         </div>` : ''}
-        ${outOfStock ? `<span class="product-badge-tag" style="background:#6b7280;color:#fff">Out of Stock</span>`
+        ${outOfStock ? `<span class="product-badge-tag out-stock-badge">Out of Stock</span>`
           : p.is_bestseller ? `<span class="product-badge-tag bestseller-badge"><i class="fas fa-fire"></i> Bestseller</span>`
           : isNew ? `<span class="product-badge-tag new-badge">✦ New</span>` : ''}
       </div>
