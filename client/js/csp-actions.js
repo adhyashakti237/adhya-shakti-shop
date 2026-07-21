@@ -75,6 +75,7 @@
     'markVisibleSecurityReviewed',
     'openCouponModal',
     'openCreateUser',
+    'openDesktopSearch',
     'openEditUser',
     'openLightbox',
     'openProcessReturn',

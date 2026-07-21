@@ -56,13 +56,11 @@ function renderNavbar() {
   const user = Auth.getUser();
   let existing = document.getElementById('navbar');
   if (!existing) { existing = document.createElement('div'); existing.id = 'navbar'; document.body.prepend(existing); }
-  const accountLabel = Auth.isAdmin() ? 'My Account' : esc((user?.name || '').split(' ')[0] || 'Account');
-
   const userMenu = user
     ? `<div class="nav-account-actions">
         ${Auth.isStrictAdmin() ? `<a href="/admin" class="btn btn-sm btn-secondary"><i class="fas fa-cog"></i> Admin</a>` : ''}
         ${Auth.isStaff() ? `<a href="/admin/orders" class="btn btn-sm btn-secondary"><i class="fas fa-briefcase"></i> Staff Panel</a>` : ''}
-        <a href="/dashboard" data-link class="btn btn-sm btn-outline nav-account-link"><i class="fas fa-user"></i> ${accountLabel}</a>
+        <a href="/dashboard" data-link class="btn btn-sm btn-outline nav-account-link nav-icon-only" aria-label="Open account" title="Account"><i class="fas fa-user"></i></a>
         <button data-csp-onclick="Auth.logout()" class="btn btn-sm btn-ghost" aria-label="Sign out"><i class="fas fa-sign-out-alt"></i></button>
       </div>`
     : `<a href="/login" data-link class="btn btn-sm btn-outline">Login</a>
@@ -77,7 +75,7 @@ function renderNavbar() {
         <img src="/images/logo-main.png" alt="Adhya Shakti Shop" id="nav-logo-img" width="52" height="52" decoding="async" fetchpriority="high" data-csp-onerror="document.getElementById('nav-logo-img').style.display='none'" />
         <span class="logo-text" style="font-family:Georgia,serif;line-height:1.1">Adhya <span>Shakti</span><br><span style="font-size:.55rem;letter-spacing:2px;font-weight:400;color:var(--text-light);text-transform:uppercase;font-family:system-ui">Shop &nbsp;·&nbsp; Est. 2026</span></span>
       </a>
-      <div class="nav-search">
+      <div class="nav-search" id="desktop-nav-search">
         <input type="text" id="nav-search-input" placeholder="Search products..." aria-label="Search products" autocomplete="off" />
         <button class="search-btn" data-csp-onclick="doNavSearch()" aria-label="Search"><i class="fas fa-search"></i></button>
         <div class="nav-search-results" id="nav-search-results" role="listbox" hidden></div>
@@ -103,18 +101,10 @@ function renderNavbar() {
           <button class="mobile-search-btn" data-csp-onclick="doNavSearch('m-search-input')" aria-label="Search products"><i class="fas fa-search"></i></button>
           <div class="nav-search-results" id="m-search-results" role="listbox" hidden></div>
         </div>
-        <a href="/" data-link>Home</a>
-        <div class="nav-dropdown" id="nav-products-dropdown">
-          <a href="/products" data-link class="nav-dropdown-trigger" aria-expanded="false" id="nav-dropdown-trigger">Products <i class="fas fa-chevron-down nav-chevron" id="nav-chevron"></i></a>
-          <div class="nav-dropdown-menu" id="nav-cat-menu">
-            <span class="nav-cat-loading" style="display:block;padding:14px 20px;font-size:.82rem;color:var(--text-light)"><i class="fas fa-spinner fa-spin"></i> Loading...</span>
-          </div>
-        </div>
         <a href="/jewelry" data-link class="nav-collection-link">Jewelry</a>
         <a href="/clothing" data-link class="nav-collection-link">Clothing</a>
         <a href="/custom-printing" data-link class="nav-collection-link">Custom</a>
-        <a href="/about" data-link>About Us</a>
-        <a href="/contact" data-link>Contact</a>
+        <button type="button" class="nav-action-link nav-search-toggle" data-csp-onclick="openDesktopSearch()" aria-label="Search products" title="Search"><i class="fas fa-search"></i></button>
         <a href="/wishlist" data-link class="cart-badge nav-action-link" aria-label="Open wishlist" title="Wishlist">
           <i class="fas fa-heart"></i> <span class="nav-action-text">Wishlist</span>
           <span class="wishlist-count" aria-label="${Wishlist.count()} items in wishlist" style="display:${Wishlist.count() ? 'flex' : 'none'};background:var(--danger)">${Wishlist.count()}</span>
@@ -131,7 +121,8 @@ function renderNavbar() {
   wireLiveSearch(document.getElementById('m-search-input'), document.getElementById('m-search-results'));
   if (!window.__liveSearchOutsideBound) {
     document.addEventListener('click', e => {
-      if (!e.target.closest('.nav-search') && !e.target.closest('.mobile-search')) {
+      if (!e.target.closest('.nav-search') && !e.target.closest('.nav-search-toggle') && !e.target.closest('.mobile-search')) {
+        document.getElementById('desktop-nav-search')?.classList.remove('open');
         closeSearchResults(document.getElementById('nav-search-results'));
         closeSearchResults(document.getElementById('m-search-results'));
       }
@@ -151,6 +142,11 @@ function renderNavbar() {
     setMobileNavOpen(true);
     setTimeout(() => document.getElementById('m-search-input')?.focus(), 40);
   };
+  window.openDesktopSearch = function openDesktopSearch() {
+    const box = document.getElementById('desktop-nav-search');
+    box?.classList.toggle('open');
+    setTimeout(() => document.getElementById('nav-search-input')?.focus(), 30);
+  };
 
   if (!window._mobileNavResizeBound) {
     window._mobileNavResizeBound = true;
@@ -164,120 +160,11 @@ function renderNavbar() {
     setMobileNavOpen(!navLinksEl?.classList.contains('open'));
   });
 
-  // Close mobile menu when a nav link is clicked — except the Products dropdown
-  // trigger, which has its own click handler to toggle the category submenu instead.
-  document.querySelectorAll('#nav-links a:not(.nav-dropdown-trigger)').forEach(a =>
+  document.querySelectorAll('#nav-links a').forEach(a =>
     a.addEventListener('click', () => {
       setMobileNavOpen(false);
     })
   );
-
-  // ── Products mega-menu (built dynamically from the live category tree below) ──
-  const _navGen = Router._gen;
-  const dropdownWrap = document.getElementById('nav-products-dropdown');
-  const dropdownMenu = document.getElementById('nav-cat-menu');
-  const chevron      = document.getElementById('nav-chevron');
-  let hideTimer;
-
-  function closeAllMenus() {
-    dropdownMenu.classList.remove('open');
-    chevron.classList.remove('open');
-    setMobileNavOpen(false);
-  }
-  const trigger = document.getElementById('nav-dropdown-trigger');
-  function openDropdown() {
-    clearTimeout(hideTimer);
-    dropdownMenu.classList.add('open'); chevron.classList.add('open');
-    if (trigger) trigger.setAttribute('aria-expanded', 'true');
-  }
-  function closeDropdown() {
-    hideTimer = setTimeout(() => {
-      dropdownMenu.classList.remove('open'); chevron.classList.remove('open');
-      if (trigger) trigger.setAttribute('aria-expanded', 'false');
-    }, 400);
-  }
-
-  document.querySelector('.nav-dropdown-trigger').addEventListener('click', (e) => {
-    if (window.innerWidth <= MOBILE_NAV_MAX) {
-      e.preventDefault();
-      e.stopPropagation();
-      dropdownMenu.classList.contains('open') ? closeDropdown() : openDropdown();
-    }
-  });
-  document.querySelector('.nav-dropdown-trigger').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      e.stopPropagation();
-      dropdownMenu.classList.contains('open') ? closeDropdown() : openDropdown();
-    }
-    if (e.key === 'Escape') closeDropdown();
-  });
-
-  // Build mega-menu from the managed category tree
-  api.get('/category-tree').catch(() => ({ categories: [] })).then((categoryTree) => {
-    if (Router.stale(_navGen)) return;
-    const menu = document.getElementById('nav-cat-menu');
-    if (!menu) return;
-    menu.innerHTML = '';
-
-    const dedicatedPage = { Clothing: '/clothing', 'Custom Clothing': '/custom-printing', 'Custom Printing': '/custom-printing' };
-
-    const grid = document.createElement('div');
-    grid.className = 'nav-mega-grid';
-
-    const menuColumns = activeCategoryTree(categoryTree);
-    if (!menuColumns.length) {
-      menu.innerHTML = '<span class="nav-cat-loading" style="display:block;padding:14px 20px;font-size:.82rem;color:var(--text-light)">No categories yet</span>';
-      return;
-    }
-
-    const appendCategoryLinks = (colEl, nodes, depth = 0) => {
-      nodes.forEach(item => {
-        const isEmpty = categorySubtreeCount(item) === 0;
-        const a = document.createElement('a');
-        a.href = `/products?category=${item.id}`;
-        a.dataset.link = '';
-        a.style.paddingLeft = depth ? `${16 + depth * 14}px` : '';
-        a.innerHTML = `<span class="cat-icon"><i class="fas ${categoryIcon(item.name)}"></i></span>${esc(item.name)}${isEmpty ? ' <span class="nav-soon-tag">Soon</span>' : ''}`;
-        a.addEventListener('click', closeAllMenus);
-        colEl.appendChild(a);
-        appendCategoryLinks(colEl, categoryChildren(item), depth + 1);
-      });
-    };
-
-    menuColumns.forEach(col => {
-      const pageKey = /custom/i.test(col.name) ? 'Custom Printing' : col.name;
-      const hasDedicated = !!dedicatedPage[pageKey];
-      const isEmpty = categorySubtreeCount(col) === 0;
-      const comingSoon = isEmpty && hasDedicated;
-
-      const colEl = document.createElement('div');
-      colEl.className = 'nav-mega-col';
-
-      const titleEl = document.createElement(comingSoon || col.id ? 'a' : 'div');
-      titleEl.className = 'nav-mega-col-title';
-      if (comingSoon) { titleEl.href = dedicatedPage[pageKey]; titleEl.dataset.link = ''; }
-      else if (col.id) { titleEl.href = `/products?category=${col.id}`; titleEl.dataset.link = ''; }
-      titleEl.innerHTML = `<i class="fas ${categoryIcon(col.name)}"></i>${esc(col.name)}${isEmpty ? ' <span class="nav-soon-tag">Soon</span>' : ''}`;
-      if (comingSoon || col.id) titleEl.addEventListener('click', closeAllMenus);
-      colEl.appendChild(titleEl);
-
-      appendCategoryLinks(colEl, categoryChildren(col));
-
-      grid.appendChild(colEl);
-    });
-
-    menu.appendChild(grid);
-
-    // View All footer
-    const footer = document.createElement('div');
-    footer.className = 'nav-mega-footer';
-    footer.innerHTML = `<a href="/products" data-link><span class="cat-icon"><i class="fas fa-th"></i></span>View All Products <i class="fas fa-arrow-right" style="margin-left:auto;font-size:.7rem;opacity:.6"></i></a>`;
-    footer.querySelector('a').addEventListener('click', closeAllMenus);
-    menu.appendChild(footer);
-  }).catch(() => {
-    document.querySelector('.nav-cat-loading')?.remove();
-  });
 }
 
 function doNavSearch(inputId = 'nav-search-input') {
@@ -289,6 +176,7 @@ function doNavSearch(inputId = 'nav-search-input') {
     document.getElementById('nav-links')?.classList.remove('open');
     document.getElementById('hamburger-btn')?.classList.remove('open');
     document.getElementById('hamburger-btn')?.setAttribute('aria-expanded', 'false');
+    document.getElementById('desktop-nav-search')?.classList.remove('open');
     document.body.classList.remove('mobile-nav-open');
     Router.navigate(`/products?search=${encodeURIComponent(val)}`);
   }

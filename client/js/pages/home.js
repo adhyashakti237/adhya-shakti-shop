@@ -140,32 +140,6 @@ Router.register('/', async () => {
       </div>
     </div>
 
-    <!-- Follow Us on Instagram -->
-    <div style="background:#0e2d23;padding:clamp(32px,8vw,56px) 0">
-      <div class="container" style="text-align:center">
-        <div style="font-size:.78rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:12px">Stay Connected</div>
-        <h2 style="font-size:clamp(1.4rem,6vw,1.85rem);font-weight:800;color:#fff;font-family:Georgia,serif;margin-bottom:12px">Follow Us on Instagram</h2>
-        <p style="color:rgba(255,255,255,.68);max-width:440px;margin:0 auto 36px;line-height:1.8;font-size:.92rem">Discover our latest jewelry pieces and custom prints. Tag us in your photos!</p>
-        <div style="display:flex;gap:20px;justify-content:center;flex-wrap:wrap">
-          <a href="https://www.instagram.com/adhyashaktijewelry?igsh=MXZkbDQ2cnNhNGhrbw==" target="_blank" rel="noopener noreferrer" class="insta-card">
-            <i class="fab fa-instagram" style="font-size:2.2rem;color:#e1306c"></i>
-            <div>
-              <div style="color:#fff;font-weight:700;font-size:.95rem">@adhyashaktijewelry</div>
-              <div style="color:rgba(255,255,255,.48);font-size:.76rem;margin-top:4px">Handcrafted Jewelry</div>
-            </div>
-            <div style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);color:#fff;border-radius:20px;padding:6px 18px;font-size:.8rem;font-weight:700;letter-spacing:.3px">Follow</div>
-          </a>
-          <a href="https://www.instagram.com/adhyashaktiprinting" target="_blank" rel="noopener noreferrer" class="insta-card">
-            <i class="fab fa-instagram" style="font-size:2.2rem;color:#e1306c"></i>
-            <div>
-              <div style="color:#fff;font-weight:700;font-size:.95rem">@adhyashaktiprinting</div>
-              <div style="color:rgba(255,255,255,.48);font-size:.76rem;margin-top:4px">Custom Printing</div>
-            </div>
-            <div style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);color:#fff;border-radius:20px;padding:6px 18px;font-size:.8rem;font-weight:700;letter-spacing:.3px">Follow</div>
-          </a>
-        </div>
-      </div>
-    </div>
   </div>`;
 
   const siteSchema = document.createElement('script');
