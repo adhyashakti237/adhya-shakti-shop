@@ -21,6 +21,7 @@ import http.cookiejar
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -47,8 +48,20 @@ PUBLIC_ROUTES = [
 
 PUBLIC_APIS = [
     "/api/products?per_page=1",
+    "/api/products?per_page=6&sort=newest",
+    "/api/category-tree",
     "/api/categories",
     "/api/settings",
+]
+
+STATIC_ASSETS = [
+    "/css/style.css",
+    "/js/components.js",
+    "/js/pages/home.js",
+    "/js/pages/products.js",
+    "/js/pages/product-detail.js",
+    "/js/pages/checkout.js",
+    "/images/logo-main.png",
 ]
 
 STATIC_MARKERS = {
@@ -69,7 +82,7 @@ STATIC_MARKERS = {
         "refund_result",
     ],
     "client/js/pages/products.js": [
-        "All ${esc(group.label)}",
+        "cat-pill-flyout-all",
         "cat-pill-flyout",
         "CollectionPage",
     ],
@@ -88,27 +101,36 @@ def make_opener() -> urllib.request.OpenerDirector:
     return urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
 
-def request_url(base: str, path: str, timeout: int, opener: urllib.request.OpenerDirector | None = None) -> tuple[bool, str]:
+def request_url(
+    base: str,
+    path: str,
+    timeout: int,
+    opener: urllib.request.OpenerDirector | None = None,
+    warn_seconds: float = 0,
+) -> tuple[bool, str, bool]:
     url = base.rstrip("/") + path
     req = urllib.request.Request(url, headers={"User-Agent": "AdhyaSmokeAudit/1.0"})
+    started = time.perf_counter()
     try:
         open_url = opener.open if opener else urllib.request.urlopen
         with open_url(req, timeout=timeout) as res:
             body = res.read(200_000)
             status = getattr(res, "status", 0)
             ctype = res.headers.get("content-type", "")
+            elapsed = time.perf_counter() - started
             if status >= 400:
-                return False, f"{status} {ctype}"
+                return False, f"{status} {ctype} ({elapsed:.2f}s)", False
             if path.startswith("/api/"):
                 try:
                     json.loads(body.decode("utf-8", "replace"))
                 except json.JSONDecodeError as exc:
-                    return False, f"{status} invalid json: {exc}"
-            return True, f"{status} {ctype}"
+                    return False, f"{status} invalid json: {exc} ({elapsed:.2f}s)", False
+            slow = bool(warn_seconds and elapsed > warn_seconds)
+            return True, f"{status} {ctype} ({elapsed:.2f}s)", slow
     except urllib.error.HTTPError as exc:
-        return False, f"{exc.code} {exc.reason}"
+        return False, f"{exc.code} {exc.reason}", False
     except Exception as exc:
-        return False, str(exc)
+        return False, str(exc), False
 
 
 def get_json(base: str, path: str, timeout: int, opener: urllib.request.OpenerDirector) -> tuple[int, dict]:
@@ -221,6 +243,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base", default="http://127.0.0.1:5000", help="Base URL to audit")
     parser.add_argument("--timeout", type=int, default=12, help="HTTP timeout in seconds")
+    parser.add_argument("--warn-seconds", type=float, default=2.5, help="Warn when a route/API/static request is slower than this many seconds")
     parser.add_argument("--admin-email", default=os.environ.get("ADHYA_ADMIN_EMAIL", ""))
     parser.add_argument("--admin-password", default=os.environ.get("ADHYA_ADMIN_PASSWORD", ""))
     parser.add_argument("--staff-email", default=os.environ.get("ADHYA_STAFF_EMAIL", ""))
@@ -230,20 +253,33 @@ def main() -> int:
     args = parser.parse_args()
 
     failures: list[str] = []
+    warnings: list[str] = []
     print(f"Website smoke audit: {args.base}")
     print("=" * 72)
 
     for path in PUBLIC_ROUTES:
-        ok, detail = request_url(args.base, path, args.timeout)
-        print(f"{'PASS' if ok else 'FAIL'} route {path}: {detail}")
+        ok, detail, slow = request_url(args.base, path, args.timeout, warn_seconds=args.warn_seconds)
+        print(f"{'PASS' if ok else 'FAIL'} route {path}: {detail}{' SLOW' if slow else ''}")
         if not ok:
             failures.append(f"route {path}: {detail}")
+        elif slow:
+            warnings.append(f"slow route {path}: {detail}")
 
     for path in PUBLIC_APIS:
-        ok, detail = request_url(args.base, path, args.timeout)
-        print(f"{'PASS' if ok else 'FAIL'} api {path}: {detail}")
+        ok, detail, slow = request_url(args.base, path, args.timeout, warn_seconds=args.warn_seconds)
+        print(f"{'PASS' if ok else 'FAIL'} api {path}: {detail}{' SLOW' if slow else ''}")
         if not ok:
             failures.append(f"api {path}: {detail}")
+        elif slow:
+            warnings.append(f"slow api {path}: {detail}")
+
+    for path in STATIC_ASSETS:
+        ok, detail, slow = request_url(args.base, path, args.timeout, warn_seconds=args.warn_seconds)
+        print(f"{'PASS' if ok else 'FAIL'} static {path}: {detail}{' SLOW' if slow else ''}")
+        if not ok:
+            failures.append(f"static {path}: {detail}")
+        elif slow:
+            warnings.append(f"slow static {path}: {detail}")
 
     for failure in check_static_markers():
         print(f"FAIL static {failure}")
@@ -270,6 +306,12 @@ def main() -> int:
         print(f"{'PASS' if ok else 'FAIL'} login {detail}")
         if not ok:
             failures.append(f"login {detail}")
+
+    if warnings:
+        print("=" * 72)
+        print("WARNINGS:")
+        for warning in warnings:
+            print(f"- {warning}")
 
     if not failures:
         print("=" * 72)
