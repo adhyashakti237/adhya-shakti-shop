@@ -193,8 +193,30 @@ function renderNavbar() {
       const item = collectionLink.closest('.nav-collection-item');
       if (item?.classList.contains('has-children')) {
         e.preventDefault();
+        item.parentElement?.querySelectorAll('.nav-collection-item.open').forEach(openItem => {
+          if (openItem !== item) {
+            openItem.classList.remove('open');
+            openItem.querySelector('.nav-collection-link')?.setAttribute('aria-expanded', 'false');
+          }
+        });
         item.classList.toggle('open');
         collectionLink.setAttribute('aria-expanded', item.classList.contains('open') ? 'true' : 'false');
+        return;
+      }
+    }
+    const collectionDropLink = e.target.closest('.nav-collection-drop-link');
+    if (collectionDropLink && window.innerWidth <= MOBILE_NAV_MAX) {
+      const row = collectionDropLink.closest('.nav-collection-row');
+      if (row?.classList.contains('has-submenu')) {
+        e.preventDefault();
+        row.parentElement?.querySelectorAll('.nav-collection-row.open').forEach(openRow => {
+          if (openRow !== row) {
+            openRow.classList.remove('open');
+            openRow.querySelector('.nav-collection-drop-link')?.setAttribute('aria-expanded', 'false');
+          }
+        });
+        row.classList.toggle('open');
+        collectionDropLink.setAttribute('aria-expanded', row.classList.contains('open') ? 'true' : 'false');
         return;
       }
     }
@@ -241,7 +263,7 @@ function collectionDropdownHtml(nodes) {
     const href = collectionPath(node);
     return `
       <div class="nav-collection-row ${children.length ? 'has-submenu' : ''}">
-        <a href="${href}" data-link class="nav-collection-drop-link">
+        <a href="${href}" data-link class="nav-collection-drop-link" ${children.length ? 'aria-expanded="false"' : ''}>
           <span><i class="fas ${categoryIcon(node.name)}"></i>${esc(node.name)}</span>
           ${children.length ? '<i class="fas fa-chevron-right nav-collection-sub-chevron"></i>' : ''}
         </a>

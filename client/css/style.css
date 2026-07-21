@@ -476,16 +476,15 @@ button.mobile-header-icon {
   .nav-search-toggle { display: none !important; }
   .nav-links {
     display: none; flex-direction: column; align-items: stretch;
-    position: fixed; top: var(--nav-h); left: 0; right: 0;
-    height: calc(100vh - var(--nav-h));
-    height: calc(100dvh - var(--nav-h));
-    max-height: calc(100vh - var(--nav-h));
-    max-height: calc(100dvh - var(--nav-h));
-    overflow-y: auto;
+    position: fixed; top: var(--nav-h); left: 0; right: 0; bottom: 0;
+    height: auto;
+    max-height: none;
+    overflow-y: scroll;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
     background: #fbf8f2; box-shadow: 0 14px 34px rgba(14,45,35,.16);
+    gap: 8px;
     padding: 12px 16px calc(18px + env(safe-area-inset-bottom)); z-index: 99;
   }
   .nav-links.open { display: flex; }
@@ -503,7 +502,7 @@ button.mobile-header-icon {
   .nav-links .nav-collection-item {
     display: block;
     align-self: stretch;
-    margin: 5px 0;
+    margin: 0;
     border: 1px solid rgba(229,221,208,.95);
     border-radius: 15px;
     background: #fff;
@@ -555,9 +554,8 @@ button.mobile-header-icon {
     transform: none;
     pointer-events: auto;
     min-width: 0;
-    padding: 4px 8px 10px;
+    padding: 8px;
     border: 0;
-    border-top: 1px solid var(--border);
     border-radius: 0;
     box-shadow: none;
     background: #fff;
@@ -593,11 +591,14 @@ button.mobile-header-icon {
     color: var(--primary) !important;
   }
   .nav-links .nav-collection-sub-chevron {
-    transform: rotate(90deg);
     color: var(--text-light);
     width: auto;
     height: auto;
     background: transparent;
+    transition: transform .18s ease;
+  }
+  .nav-links .nav-collection-row.open .nav-collection-sub-chevron {
+    transform: rotate(90deg);
   }
   .nav-links .nav-collection-submenu {
     position: static;
@@ -605,7 +606,7 @@ button.mobile-header-icon {
     opacity: 1;
     transform: none;
     pointer-events: auto;
-    display: block;
+    display: none;
     min-width: 0;
     margin: 0 0 4px 22px;
     padding: 0 0 0 10px;
@@ -614,15 +615,18 @@ button.mobile-header-icon {
     box-shadow: none;
     background: transparent;
   }
+  .nav-links .nav-collection-row.open .nav-collection-submenu {
+    display: block;
+  }
   .nav-links .nav-collection-submenu a {
     justify-content: flex-start;
   }
   .mobile-drawer-actions {
     display: grid;
     gap: 8px;
-    margin-top: 10px;
-    padding-top: 12px;
-    border-top: 1px solid var(--border);
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
   }
   .mobile-drawer-link {
     min-height: 52px;
