@@ -1273,6 +1273,24 @@ tr:hover td { background: var(--bg); }
   overflow-wrap: anywhere;
 }
 .order-success-summary .success-text { color: var(--success); }
+.order-success-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 5px 9px;
+  border: 1px solid #d9cdb9;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: .72rem;
+  font-weight: 800;
+}
+.order-success-copy:hover {
+  border-color: var(--primary);
+  background: rgba(29,92,74,.06);
+}
 .order-success-next {
   display: grid;
   gap: 9px;

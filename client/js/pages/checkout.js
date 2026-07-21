@@ -159,7 +159,11 @@ Router.register('/checkout', async () => {
     clearPendingPaidOrder();
     Cart.clear();
     sessionStorage.removeItem('cart_coupon_code');
-    Router.navigate(`/order-success?order=${res.order_number}&total=${res.total}`);
+    const qs = new URLSearchParams({
+      order: res.order_number || '',
+      total: String(res.total || ''),
+    });
+    Router.navigate(`/order-success?${qs.toString()}`);
   }
   window.recoverPendingPaidOrder = async () => {
     const btn = document.getElementById('recover-paid-order-btn');
@@ -695,6 +699,7 @@ Router.register('/checkout', async () => {
 Router.register('/order-success', (params) => {
   const orderNumber = String(params.order || '').trim();
   const total = parseFloat(params.total) || 0;
+  const canViewOrders = Auth.isLoggedIn();
   document.getElementById('app').innerHTML = `
     <div class="container section order-success-wrap">
       <div class="order-success-card">
@@ -704,7 +709,11 @@ Router.register('/order-success', (params) => {
         <p>Thank you for your purchase. We emailed your confirmation and will update you as the order moves through processing and shipping.</p>
 
         <div class="order-success-summary">
-          <div><span>Order number</span><strong>${esc(orderNumber)}</strong></div>
+          <div>
+            <span>Order number</span>
+            <strong>${esc(orderNumber || 'Check your email')}</strong>
+            ${orderNumber ? `<button class="order-success-copy" type="button" data-order-copy="${esc(orderNumber)}" data-csp-onclick="copySuccessOrderNumber(this.dataset.orderCopy)"><i class="fas fa-copy"></i> Copy</button>` : ''}
+          </div>
           <div><span>Total paid</span><strong>${fmt(total)}</strong></div>
           <div><span>Payment</span><strong class="success-text">Paid</strong></div>
           <div><span>Status</span><strong>Pending review</strong></div>
@@ -717,7 +726,9 @@ Router.register('/order-success', (params) => {
         </div>
 
         <div class="order-success-actions">
-          <a href="/dashboard/orders" data-link class="btn btn-primary"><i class="fas fa-box"></i> View My Orders</a>
+          ${canViewOrders
+            ? `<a href="/dashboard/orders" data-link class="btn btn-primary"><i class="fas fa-box"></i> View My Orders</a>`
+            : `<a href="/login" data-link class="btn btn-primary"><i class="fas fa-user"></i> Log in to view orders</a>`}
           <a href="/track-order" data-link class="btn btn-outline"><i class="fas fa-location-dot"></i> Track by Order #</a>
           <a href="/products" data-link class="btn btn-ghost"><i class="fas fa-store"></i> Continue Shopping</a>
         </div>
@@ -725,4 +736,12 @@ Router.register('/order-success', (params) => {
         <div class="checkout-safe-note"><i class="fas fa-headset"></i> Need help? Email contact@adhyashaktishop.com with order ${esc(orderNumber)}.</div>
       </div>
     </div>`;
+  window.copySuccessOrderNumber = async (value) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast('Order number copied.', 'success');
+    } catch {
+      toast('Order number: ' + value, 'info');
+    }
+  };
 });
