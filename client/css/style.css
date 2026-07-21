@@ -3140,6 +3140,24 @@ button.admin-product-issue:hover {
 }
 .admin-content .admin-order-summary-grid strong { display: block; font-size: 1.12rem; line-height: 1.1; }
 .admin-content .admin-order-summary-grid span { display: block; color: #667085; font-size: .78rem; font-weight: 650; }
+.admin-content .admin-order-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(150px, 190px) auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.admin-content .admin-order-toolbar .btn {
+  height: 44px;
+  justify-content: center;
+  white-space: nowrap;
+}
+.admin-content .admin-order-filter-note {
+  grid-column: 1 / -1;
+  color: #667085;
+  font-size: .82rem;
+  line-height: 1.4;
+}
 .admin-content .admin-order-detail-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -4759,6 +4777,12 @@ body:has(.sticky-atc.visible) .back-to-top { display: none; }
   }
   .admin-content .admin-work-grid {
     grid-template-columns: 1fr;
+  }
+  .admin-content .admin-order-toolbar {
+    grid-template-columns: 1fr;
+  }
+  .admin-content .admin-order-toolbar .btn {
+    width: 100%;
   }
   .admin-content .admin-order-quick-actions {
     justify-content: flex-start;

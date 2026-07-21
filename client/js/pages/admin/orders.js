@@ -4,7 +4,7 @@ Router.register('/admin/orders', async () => {
   const _gen = Router._gen;
 
   const initialParams = new URLSearchParams(location.search || '');
-  let orders = [], filterStatus = initialParams.get('status') || '', viewMode = initialParams.get('view') || '', searchTerm = (initialParams.get('q') || '').toLowerCase().trim();
+  let orders = [], filterStatus = initialParams.get('status') || '', viewMode = initialParams.get('view') || '', searchTerm = (initialParams.get('q') || '').toLowerCase().trim(), orderSort = initialParams.get('sort') || 'newest';
   const ATTENTION_PENDING_DAYS = 2;
 
   function ageDays(dateValue) {
@@ -97,6 +97,36 @@ Router.register('/admin/orders', async () => {
     if (viewMode === 'ready_to_ship') return o.status === 'processing';
     if (viewMode === 'review_requests') return o.status === 'delivered' && !o.review_requested_at;
     return true;
+  }
+
+  function orderSortLabel(value) {
+    const map = {
+      newest: 'Newest first',
+      oldest: 'Oldest first',
+      attention: 'Attention first',
+      high_total: 'Highest total',
+      low_total: 'Lowest total',
+    };
+    return map[value] || map.newest;
+  }
+
+  function orderTimeValue(o) {
+    const t = new Date(String(o?.created_at || '').replace(' ', 'T')).getTime();
+    return Number.isFinite(t) ? t : 0;
+  }
+
+  function sortedOrders(list) {
+    return list.slice().sort((a, b) => {
+      if (orderSort === 'oldest') return orderTimeValue(a) - orderTimeValue(b);
+      if (orderSort === 'attention') {
+        const flagDiff = orderAttentionFlags(b).length - orderAttentionFlags(a).length;
+        if (flagDiff) return flagDiff;
+        return orderTimeValue(b) - orderTimeValue(a);
+      }
+      if (orderSort === 'high_total') return Number(b.total || 0) - Number(a.total || 0);
+      if (orderSort === 'low_total') return Number(a.total || 0) - Number(b.total || 0);
+      return orderTimeValue(b) - orderTimeValue(a);
+    });
   }
 
   function safeAddress(addr) {
@@ -249,11 +279,11 @@ Router.register('/admin/orders', async () => {
   }
 
   function renderOrders() {
-    const visibleOrders = orders.filter(o => {
+    const visibleOrders = sortedOrders(orders.filter(o => {
       const itemText = (o.items || []).map(i => `${i.name || ''} ${i.variation || ''}`).join(' ');
       const haystack = `${o.order_number || ''} ${o.customer_name || ''} ${o.customer_email || ''} ${o.customer_phone || ''} ${o.status || ''} ${o.payment_status || ''} ${itemText}`.toLowerCase();
       return orderMatchesView(o) && (!searchTerm || haystack.includes(searchTerm));
-    });
+    }));
     const counts = {
       pending: orders.filter(o => o.status === 'pending').length,
       processing: orders.filter(o => o.status === 'processing').length,
@@ -298,9 +328,24 @@ Router.register('/admin/orders', async () => {
       </div>
       <div class="card">
         <div class="card-body" style="padding-bottom:0">
-          <div class="flex-between" style="gap:12px;flex-wrap:wrap;margin-bottom:14px">
-            <input class="form-control" id="admin-order-search" value="${esc(searchTerm)}" placeholder="Search order, customer, phone, product..." style="max-width:380px" data-csp-oninput="searchAdminOrders()" />
-            <div class="text-muted text-sm">${filterStatus ? `Status: ${esc(filterStatus.replace('_',' '))}` : 'All statuses'}${viewMode ? ` · Queue: ${esc(viewMode.replace(/_/g, ' '))}` : ''}</div>
+          <div class="admin-order-toolbar">
+            <input class="form-control" id="admin-order-search" value="${esc(searchTerm)}" placeholder="Search order, customer, phone, product..." data-csp-oninput="searchAdminOrders()" />
+            <select class="form-control" id="admin-order-sort" data-csp-onchange="changeOrderSort()">
+              ${[
+                ['newest', 'Newest first'],
+                ['oldest', 'Oldest first'],
+                ['attention', 'Attention first'],
+                ['high_total', 'Highest total'],
+                ['low_total', 'Lowest total'],
+              ].map(([val, label]) => `<option value="${val}" ${orderSort === val ? 'selected' : ''}>${label}</option>`).join('')}
+            </select>
+            <button class="btn btn-outline btn-sm" data-csp-onclick="clearAdminOrderFilters()"><i class="fas fa-rotate-left"></i> Clear</button>
+            <div class="admin-order-filter-note">
+              ${filterStatus ? `Status: ${esc(filterStatus.replace('_',' '))}` : 'All statuses'}
+              ${viewMode ? ` · Queue: ${esc(viewMode.replace(/_/g, ' '))}` : ''}
+              ${searchTerm ? ` · Search: ${esc(searchTerm)}` : ''}
+              · Sort: ${esc(orderSortLabel(orderSort))}
+            </div>
           </div>
           <div class="tabs" style="margin-bottom:0;flex-wrap:wrap">
             ${[
@@ -347,7 +392,13 @@ Router.register('/admin/orders', async () => {
                       : ''}
                   </div>
                 </td>
-              </tr>`).join('') : '<tr><td colspan="9" class="text-center text-muted" style="padding:32px">No orders found</td></tr>'}
+              </tr>`).join('') : `
+              <tr>
+                <td colspan="9" class="text-center text-muted" style="padding:32px">
+                  <strong style="display:block;color:#102f27;margin-bottom:4px">No orders match this view</strong>
+                  Clear the search, queue, or status filter to see more orders.
+                </td>
+              </tr>`}
           </tbody>
         </table></div>
       </div>`;
@@ -358,6 +409,7 @@ Router.register('/admin/orders', async () => {
     if (filterStatus) params.set('status', filterStatus);
     if (viewMode) params.set('view', viewMode);
     if (searchTerm) params.set('q', searchTerm);
+    if (orderSort && orderSort !== 'newest') params.set('sort', orderSort);
     const qs = params.toString();
     history.replaceState(null, '', `/admin/orders${qs ? '?' + qs : ''}`);
   }
@@ -384,6 +436,21 @@ Router.register('/admin/orders', async () => {
       next.focus();
       next.setSelectionRange(Math.min(caret, next.value.length), Math.min(caret, next.value.length));
     }
+  };
+
+  window.changeOrderSort = () => {
+    orderSort = document.getElementById('admin-order-sort')?.value || 'newest';
+    syncOrderUrl();
+    renderOrders();
+  };
+
+  window.clearAdminOrderFilters = () => {
+    filterStatus = '';
+    viewMode = '';
+    searchTerm = '';
+    orderSort = 'newest';
+    syncOrderUrl();
+    loadOrders();
   };
 
   window.quickOrderStatus = async (id, nextStatus) => {
