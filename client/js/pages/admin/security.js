@@ -167,7 +167,7 @@ Router.register('/admin/security', async (params = {}) => {
     </tr>`;
 
   const exportKinds = [
-    ['customers', 'Customers'], ['orders', 'Orders'], ['products', 'Products'], ['inventory', 'Inventory'],
+    ['customers', 'Customers'], ['orders', 'Orders'], ['products', 'Products'], ['product_completion', 'Product Completion'], ['inventory', 'Inventory'],
     ['categories', 'Categories'], ['reviews', 'Reviews'], ['coupons', 'Coupons'], ['vendors', 'Vendors'],
     ['sales', 'Sales'], ['purchases', 'Purchases'], ['expenses', 'Expenses'], ['security_events', 'Security Events'],
     ['audit_log', 'Audit Log'],

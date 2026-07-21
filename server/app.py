@@ -6514,6 +6514,34 @@ ADMIN_EXPORTS = {
         'columns': ['id', 'name', 'sku', 'price', 'compare_price', 'cost_price', 'stock', 'low_stock_threshold',
                     'category', 'is_active', 'allow_custom_print', 'is_bestseller', 'created_at'],
     },
+    'product_completion': {
+        'filename': 'product_completion',
+        'sql': """SELECT p.id,p.name,p.sku,p.price,p.cost_price,p.stock,
+                 c.name AS category,
+                 CASE WHEN IFNULL(p.cost_price,0)<=0 THEN 'yes' ELSE 'no' END AS needs_cost_price,
+                 CASE WHEN IFNULL(TRIM(p.images),'')='' OR TRIM(p.images)='[]' THEN 'yes' ELSE 'no' END AS needs_image,
+                 CASE WHEN p.category_id IS NULL OR IFNULL(TRIM(p.category_id),'')='' OR c.id IS NULL THEN 'yes' ELSE 'no' END AS needs_category,
+                 CASE
+                   WHEN IFNULL(p.cost_price,0)<=0 THEN 'Enter wholesale/unit cost for accurate profit reports'
+                   WHEN IFNULL(TRIM(p.images),'')='' OR TRIM(p.images)='[]' THEN 'Add product image'
+                   WHEN p.category_id IS NULL OR IFNULL(TRIM(p.category_id),'')='' OR c.id IS NULL THEN 'Select product category'
+                   ELSE 'Complete'
+                 END AS suggested_action
+                 FROM products p
+                 LEFT JOIN categories c ON c.id=p.category_id
+                 WHERE p.is_active=1
+                   AND (
+                     IFNULL(p.cost_price,0)<=0
+                     OR IFNULL(TRIM(p.images),'')=''
+                     OR TRIM(p.images)='[]'
+                     OR p.category_id IS NULL
+                     OR IFNULL(TRIM(p.category_id),'')=''
+                     OR c.id IS NULL
+                   )
+                 ORDER BY needs_cost_price DESC, needs_image DESC, p.name COLLATE NOCASE""",
+        'columns': ['id', 'name', 'sku', 'price', 'cost_price', 'stock', 'category',
+                    'needs_cost_price', 'needs_image', 'needs_category', 'suggested_action'],
+    },
     'back_in_stock': {
         'filename': 'back_in_stock_requests',
         'sql': """SELECT b.id,p.name AS product,p.sku,b.email,b.name,b.status,b.request_count,
