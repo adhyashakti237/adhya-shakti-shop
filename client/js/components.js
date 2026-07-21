@@ -71,16 +71,23 @@ function renderNavbar() {
   let existing = document.getElementById('navbar');
   if (!existing) { existing = document.createElement('div'); existing.id = 'navbar'; document.body.prepend(existing); }
   const userMenu = user
-    ? `<div class="nav-account-actions">
+    ? `<div class="nav-account-actions desktop-menu-actions">
         ${Auth.isStrictAdmin() ? `<a href="/admin" class="btn btn-sm btn-secondary"><i class="fas fa-cog"></i> Admin</a>` : ''}
         ${Auth.isStaff() ? `<a href="/admin/orders" class="btn btn-sm btn-secondary"><i class="fas fa-briefcase"></i> Staff Panel</a>` : ''}
         <a href="/dashboard" data-link class="btn btn-sm btn-outline nav-account-link nav-icon-only" aria-label="Open account" title="Account"><i class="fas fa-user"></i></a>
         <button data-csp-onclick="Auth.logout()" class="btn btn-sm btn-ghost" aria-label="Sign out"><i class="fas fa-sign-out-alt"></i></button>
       </div>`
-    : `<a href="/login" data-link class="btn btn-sm btn-outline">Login</a>
-       <a href="/register" data-link class="btn btn-sm btn-primary">Register</a>`;
-  const mobileAccountHref = user ? '/dashboard' : '/login';
-  const mobileAccountLabel = user ? 'Open account' : 'Login';
+    : `<div class="nav-account-actions desktop-menu-actions">
+        <a href="/login" data-link class="btn btn-sm btn-outline">Login</a>
+        <a href="/register" data-link class="btn btn-sm btn-primary">Register</a>
+       </div>`;
+  const drawerAccount = user
+    ? `${Auth.isStrictAdmin() ? `<a href="/admin" class="mobile-drawer-link"><i class="fas fa-cog"></i><span>Admin Panel</span></a>` : ''}
+       ${Auth.isStaff() ? `<a href="/admin/orders" class="mobile-drawer-link"><i class="fas fa-briefcase"></i><span>Staff Panel</span></a>` : ''}
+       <a href="/dashboard" data-link class="mobile-drawer-link"><i class="fas fa-user"></i><span>Account</span></a>
+       <button type="button" class="mobile-drawer-link" data-csp-onclick="Auth.logout()"><i class="fas fa-sign-out-alt"></i><span>Logout</span></button>`
+    : `<a href="/login" data-link class="mobile-drawer-link"><i class="fas fa-user"></i><span>Login</span></a>
+       <a href="/register" data-link class="mobile-drawer-link"><i class="fas fa-user-plus"></i><span>Register</span></a>`;
 
   existing.innerHTML = `
     ${!annDismissed ? `<div class="announcement-bar" id="announcement-bar"><i class="fas fa-truck"></i>&ensp;Free shipping on orders over $49 — <a href="/products" data-link>Shop Now →</a><button class="ann-close" data-csp-onclick="sessionStorage.setItem('ann_dismissed','1');this.closest('.announcement-bar').style.display='none';document.documentElement.style.setProperty('--nav-h','64px')" aria-label="Close">×</button></div>` : ''}
@@ -96,15 +103,10 @@ function renderNavbar() {
       </div>
       <div class="mobile-header-actions" aria-label="Quick actions">
         <button class="mobile-header-icon" type="button" data-csp-onclick="openMobileSearch()" aria-label="Search products"><i class="fas fa-search"></i></button>
-        <a href="/wishlist" data-link class="mobile-header-icon" aria-label="Open wishlist">
-          <i class="fas fa-heart"></i>
-          <span class="mobile-action-count wishlist-count" aria-label="${Wishlist.count()} items in wishlist" style="display:${Wishlist.count() ? 'flex' : 'none'}">${Wishlist.count()}</span>
-        </a>
         <a href="/cart" data-link class="mobile-header-icon mobile-header-cart visible" aria-label="Open cart">
           <i class="fas fa-shopping-bag"></i>
           <span class="mobile-action-count mobile-cart-count cart-count" aria-label="${Cart.count()} items in cart" style="display:${Cart.count() ? 'flex' : 'none'}">${Cart.count()}</span>
         </a>
-        <a href="${mobileAccountHref}" data-link class="mobile-header-icon" aria-label="${mobileAccountLabel}"><i class="fas fa-user"></i></a>
       </div>
       <button class="hamburger" id="hamburger-btn" aria-label="Toggle menu" aria-controls="nav-links" aria-expanded="false">
         <span></span><span></span><span></span>
@@ -118,6 +120,17 @@ function renderNavbar() {
         <div class="nav-collection-item" data-nav-root="jewelry"><a href="/jewelry" data-link class="nav-collection-link">Jewelry</a></div>
         <div class="nav-collection-item" data-nav-root="clothing"><a href="/clothing" data-link class="nav-collection-link">Clothing</a></div>
         <div class="nav-collection-item" data-nav-root="custom"><a href="/custom-printing" data-link class="nav-collection-link">Custom</a></div>
+        <div class="mobile-drawer-actions">
+          <a href="/wishlist" data-link class="mobile-drawer-link">
+            <i class="fas fa-heart"></i><span>Wishlist</span>
+            <span class="mobile-drawer-count wishlist-count" style="display:${Wishlist.count() ? 'inline-flex' : 'none'}">${Wishlist.count()}</span>
+          </a>
+          <a href="/cart" data-link class="mobile-drawer-link">
+            <i class="fas fa-shopping-bag"></i><span>Cart</span>
+            <span class="mobile-drawer-count cart-count" style="display:${Cart.count() ? 'inline-flex' : 'none'}">${Cart.count()}</span>
+          </a>
+          ${drawerAccount}
+        </div>
         <button type="button" class="nav-action-link nav-search-toggle" data-csp-onclick="openDesktopSearch()" aria-label="Search products" title="Search"><i class="fas fa-search"></i></button>
         <a href="/wishlist" data-link class="cart-badge nav-action-link" aria-label="Open wishlist" title="Wishlist">
           <i class="fas fa-heart"></i> <span class="nav-action-text">Wishlist</span>
@@ -175,6 +188,16 @@ function renderNavbar() {
   });
 
   navLinksEl?.addEventListener('click', e => {
+    const collectionLink = e.target.closest('.nav-collection-link');
+    if (collectionLink && window.innerWidth <= MOBILE_NAV_MAX) {
+      const item = collectionLink.closest('.nav-collection-item');
+      if (item?.classList.contains('has-children')) {
+        e.preventDefault();
+        item.classList.toggle('open');
+        collectionLink.setAttribute('aria-expanded', item.classList.contains('open') ? 'true' : 'false');
+        return;
+      }
+    }
     if (e.target.closest('a')) {
       setMobileNavOpen(false);
     }
@@ -200,8 +223,12 @@ function buildCollectionNav() {
       const href = collectionPath(root);
       const label = collectionLabel(root);
       const children = categoryChildren(root).filter(c => c && c.is_active !== 0);
+      shell.classList.toggle('has-children', !!children.length);
       shell.innerHTML = `
-        <a href="${href}" data-link class="nav-collection-link">${esc(label)}${children.length ? ' <i class="fas fa-chevron-down nav-collection-chevron"></i>' : ''}</a>
+        <a href="${href}" data-link class="nav-collection-link" ${children.length ? 'aria-expanded="false"' : ''}>
+          <span><i class="fas ${categoryIcon(label)}"></i>${esc(label)}</span>
+          ${children.length ? '<i class="fas fa-chevron-down nav-collection-chevron"></i>' : ''}
+        </a>
         ${children.length ? collectionDropdownHtml(children) : ''}
       `;
     });
@@ -216,7 +243,7 @@ function collectionDropdownHtml(nodes) {
       <div class="nav-collection-row ${children.length ? 'has-submenu' : ''}">
         <a href="${href}" data-link class="nav-collection-drop-link">
           <span><i class="fas ${categoryIcon(node.name)}"></i>${esc(node.name)}</span>
-          ${children.length ? '<i class="fas fa-chevron-right"></i>' : ''}
+          ${children.length ? '<i class="fas fa-chevron-right nav-collection-sub-chevron"></i>' : ''}
         </a>
         ${children.length ? `
           <div class="nav-collection-submenu">
