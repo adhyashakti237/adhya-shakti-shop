@@ -174,14 +174,13 @@ Router.register('/', async () => {
   document.head.appendChild(siteSchema);
 
   // Fetch all data in parallel
-  const [slidersRes, statsRes, catsRes, productsRes, reviewsRes, clothingCsRes, clothingTreeRes] = await Promise.allSettled([
+  const [slidersRes, statsRes, catsRes, productsRes, reviewsRes, clothingCsRes] = await Promise.allSettled([
     api.get('/sliders'),
     api.get('/stats/public'),
     api.get('/category-tree'),
-    api.get('/products?per_page=5&sort=discount'),
+    api.get('/products?per_page=6&sort=discount'),
     api.get('/reviews/featured'),
     clothingComingSoon(),
-    api.get('/category-tree'),
   ]);
   if (Router.stale(_gen)) return;
   const isClothingComingSoon = clothingCsRes.status === 'fulfilled' ? clothingCsRes.value : true;
@@ -323,7 +322,7 @@ Router.register('/', async () => {
   // Recently viewed (localStorage)
   const rv = (() => { try { return JSON.parse(localStorage.getItem('recently_viewed') || '[]'); } catch { return []; } })();
   if (rv.length) {
-    document.getElementById('recently-viewed-grid').innerHTML = rv.slice(0, 4).map(productCard).join('');
+    document.getElementById('recently-viewed-grid').innerHTML = rv.slice(0, 6).map(productCard).join('');
     document.getElementById('recently-viewed-wrap').style.display = '';
   }
 });

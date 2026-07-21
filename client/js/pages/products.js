@@ -518,7 +518,7 @@ Router.register('/products', async (params) => {
             buildCatFilter(allCats, '');
             loadProducts({ scrollTop: true });
           });
-          fillProductRail('empty-search-rail', { includeRecent: true, fallbackNewest: true, limit: 4 });
+          fillProductRail('empty-search-rail', { includeRecent: true, fallbackNewest: true, limit: 6 });
         }
       } else {
         grid.innerHTML = products.map(productCard).join('');
