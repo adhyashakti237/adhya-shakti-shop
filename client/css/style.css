@@ -619,7 +619,22 @@ button.mobile-header-icon {
   pointer-events: none;
 }
 .product-img img { width: 100%; height: 100%; object-fit: cover; transition: transform .3s; display: block; }
+.product-img.product-img-placeholder {
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255,255,255,.86), rgba(255,255,255,.22) 58%, transparent 59%),
+    linear-gradient(135deg,#fbfaf6,#eee8dc);
+}
+.product-img.product-img-placeholder img {
+  width: 62%;
+  height: 62%;
+  object-fit: contain;
+  opacity: .82;
+  filter: drop-shadow(0 8px 18px rgba(14,45,35,.12));
+}
 .product-card:hover .product-img img { transform: scale(1.05); }
+.product-card:hover .product-img.product-img-placeholder img { transform: scale(1.02); }
 .wishlist-card-img:hover { transform: scale(1.05); }
 .product-badge {
   position: absolute; top: 10px; left: 10px;
@@ -2507,7 +2522,22 @@ a.product-card { display: block; text-decoration: none; color: inherit; }
 }
 .wishlist-card-media { display: block; aspect-ratio: 1; overflow: hidden; background: var(--bg); }
 .wishlist-card-media img { width: 100%; height: 100%; object-fit: cover; transition: transform .3s; }
+.wishlist-card-media.product-img-placeholder {
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255,255,255,.86), rgba(255,255,255,.22) 58%, transparent 59%),
+    linear-gradient(135deg,#fbfaf6,#eee8dc);
+}
+.wishlist-card-media.product-img-placeholder img {
+  width: 62%;
+  height: 62%;
+  object-fit: contain;
+  opacity: .82;
+  filter: drop-shadow(0 8px 18px rgba(14,45,35,.12));
+}
 .wishlist-card-media:hover img { transform: scale(1.04); }
+.wishlist-card-media.product-img-placeholder:hover img { transform: scale(1.02); }
 .wishlist-card-body { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 14px; }
 .wishlist-card-title { font-weight: 750; font-size: .94rem; line-height: 1.35; min-height: 2.55em; }
 .wishlist-card-price { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

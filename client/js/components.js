@@ -498,8 +498,13 @@ function renderFooter() {
   });
 }
 
-function productCard(p) {
-  const img = safeMediaUrl((p.images || [])[0] || p.image, 'https://placehold.co/300x300/f5f5f5/999?text=No+Image');
+function productCard(p, index = 99) {
+  const rawImg = (p.images || [])[0] || p.image;
+  const hasImage = !!safeMediaUrl(rawImg, '');
+  const img = safeMediaUrl(rawImg, '/images/logo-main.png');
+  const priorityIndex = Number.isFinite(Number(index)) ? Number(index) : 99;
+  const imageLoading = priorityIndex < 4 ? 'eager' : 'lazy';
+  const imagePriority = priorityIndex < 2 ? 'high' : 'auto';
   const discount = p.compare_price > p.price ? Math.round((1 - p.price / p.compare_price) * 100) : 0;
   const wData = Wishlist.payloadAttr({ id: p.id, name: p.name, price: p.price, compare_price: p.compare_price || 0, image: img });
   const isNew = p.created_at && (Date.now() - new Date(p.created_at.replace(' ', 'T') + 'Z').getTime()) < 30 * 86400 * 1000;
@@ -518,8 +523,8 @@ function productCard(p) {
   const quickPayload = { id: p.id, name: p.name, price: p.price, images: [img], stock, has_variants: hasVariants, allow_custom_print: customPrint };
   return `
     <a class="product-card" href="/product/${p.id}" data-link>
-      <div class="product-img">
-        <img src="${img}" alt="${esc(p.name)}" loading="lazy" decoding="async" width="300" height="300" data-csp-onerror="this.src='https://placehold.co/300x300/f5f5f5/999?text=No+Image'" />
+      <div class="product-img ${hasImage ? '' : 'product-img-placeholder'}">
+        <img src="${img}" alt="${esc(p.name)}" loading="${imageLoading}" decoding="async" fetchpriority="${imagePriority}" width="300" height="300" data-csp-onerror="this.closest('.product-img')?.classList.add('product-img-placeholder');this.src='/images/logo-main.png'" />
         ${discount ? `<span class="product-badge">${discount}% OFF</span>` : ''}
         <button class="product-wishlist-overlay ${Wishlist.has(p.id) ? 'wishlisted' : ''}"
           data-wid="${esc(p.id)}" data-wp-enc="${wData}"

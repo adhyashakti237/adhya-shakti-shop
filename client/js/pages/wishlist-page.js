@@ -52,17 +52,21 @@ Router.register('/wishlist', async () => {
           </button>
         </div>
         <div class="wishlist-grid-pro">
-          ${items.map(p => `
+          ${items.map((p, idx) => {
+            const hasImage = !!safeMediaUrl(p.image, '');
+            const img = safeMediaUrl(p.image, '/images/logo-main.png');
+            return `
             <div class="wishlist-card-pro">
-              <a href="/product/${encodeURIComponent(p.id)}" data-link class="wishlist-card-media">
-                <img src="${safeMediaUrl(p.image, 'https://placehold.co/300x300/f5f5f5/999?text=No+Image')}"
+              <a href="/product/${encodeURIComponent(p.id)}" data-link class="wishlist-card-media ${hasImage ? '' : 'product-img-placeholder'}">
+                <img src="${img}"
                   alt="${esc(p.name)}"
                   class="wishlist-card-img"
-                  loading="lazy"
+                  loading="${idx < 4 ? 'eager' : 'lazy'}"
                   decoding="async"
+                  fetchpriority="${idx < 2 ? 'high' : 'auto'}"
                   width="300"
                   height="300"
-                  data-csp-onerror="this.src='https://placehold.co/300x300/f5f5f5/999?text=No+Image'" />
+                  data-csp-onerror="this.closest('.wishlist-card-media')?.classList.add('product-img-placeholder');this.src='/images/logo-main.png'" />
               </a>
               <div class="wishlist-card-body">
                 <div class="wishlist-card-title">${esc(p.name)}</div>
@@ -79,7 +83,8 @@ Router.register('/wishlist', async () => {
                   </button>
                 </div>
               </div>
-            </div>`).join('')}
+            </div>`;
+          }).join('')}
         </div>
 
         <!-- You May Also Like -->
@@ -106,7 +111,8 @@ Router.register('/wishlist', async () => {
   }
   document.querySelectorAll('.wishlist-card-img').forEach(img => {
     img.addEventListener('error', () => {
-      img.src = 'https://placehold.co/300x300/f5f5f5/999?text=No+Image';
+      img.closest('.wishlist-card-media')?.classList.add('product-img-placeholder');
+      img.src = '/images/logo-main.png';
     }, { once: true });
   });
   document.querySelectorAll('[data-wishlist-remove]').forEach(btn => {
