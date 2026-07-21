@@ -185,6 +185,7 @@ def main() -> int:
         "scripts/website_smoke_audit.py",
         "scripts/performance_asset_audit.py",
         "scripts/launch_confidence_audit.py",
+        "scripts/frontend_asset_integrity.py",
         "scripts/cleanup_historical_data_warnings.py",
         "scripts/update_product_costs_from_csv.py",
         "scripts/optimize_product_images.py",
@@ -199,6 +200,18 @@ def main() -> int:
 
     if not args.skip_js:
         summary["steps"].append(run_js_syntax_step(out_dir, env))
+
+    summary["steps"].append(run_step(
+        "frontend_assets",
+        [
+            sys.executable,
+            "scripts/frontend_asset_integrity.py",
+            "--report-json",
+            str(out_dir / "frontend_assets.json"),
+        ],
+        out_dir,
+        env,
+    ))
 
     if not args.skip_smoke:
         summary["steps"].append(run_step(
