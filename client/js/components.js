@@ -59,10 +59,10 @@ function renderNavbar() {
   const accountLabel = Auth.isAdmin() ? 'My Account' : esc((user?.name || '').split(' ')[0] || 'Account');
 
   const userMenu = user
-    ? `<div style="position:relative;display:flex;align-items:center;gap:4px">
+    ? `<div class="nav-account-actions">
         ${Auth.isStrictAdmin() ? `<a href="/admin" class="btn btn-sm btn-secondary"><i class="fas fa-cog"></i> Admin</a>` : ''}
         ${Auth.isStaff() ? `<a href="/admin/orders" class="btn btn-sm btn-secondary"><i class="fas fa-briefcase"></i> Staff Panel</a>` : ''}
-        <a href="/dashboard" data-link class="btn btn-sm btn-outline"><i class="fas fa-user"></i> ${accountLabel}</a>
+        <a href="/dashboard" data-link class="btn btn-sm btn-outline nav-account-link"><i class="fas fa-user"></i> ${accountLabel}</a>
         <button data-csp-onclick="Auth.logout()" class="btn btn-sm btn-ghost" aria-label="Sign out"><i class="fas fa-sign-out-alt"></i></button>
       </div>`
     : `<a href="/login" data-link class="btn btn-sm btn-outline">Login</a>
@@ -112,12 +112,12 @@ function renderNavbar() {
         </div>
         <a href="/about" data-link>About Us</a>
         <a href="/contact" data-link>Contact</a>
-        <a href="/wishlist" data-link class="cart-badge">
-          <i class="fas fa-heart"></i> Wishlist
+        <a href="/wishlist" data-link class="cart-badge nav-action-link" aria-label="Open wishlist" title="Wishlist">
+          <i class="fas fa-heart"></i> <span class="nav-action-text">Wishlist</span>
           <span class="wishlist-count" aria-label="${Wishlist.count()} items in wishlist" style="display:${Wishlist.count() ? 'flex' : 'none'};background:var(--danger)">${Wishlist.count()}</span>
         </a>
-        <a href="/cart" data-link class="cart-badge">
-          <i class="fas fa-shopping-cart"></i> Cart
+        <a href="/cart" data-link class="cart-badge nav-action-link" aria-label="Open cart" title="Cart">
+          <i class="fas fa-shopping-bag"></i> <span class="nav-action-text">Cart</span>
           <span class="cart-count" aria-label="${Cart.count()} items in cart" style="display:${Cart.count() ? 'flex' : 'none'}">${Cart.count()}</span>
         </a>
         ${userMenu}
@@ -465,7 +465,7 @@ function renderFooter() {
         <div class="footer-col">
           <h4>Shop</h4>
           <a href="/products" data-link>All Products</a>
-          <a href="/products" data-link>Jewelry</a>
+          <a href="/jewelry" data-link>Jewelry</a>
           <a href="/clothing" data-link id="footer-link-clothing">Clothing</a>
           <a href="/custom-printing" data-link id="footer-link-custom">Custom Printing</a>
           <a href="/bulk-orders" data-link>Bulk Orders</a>

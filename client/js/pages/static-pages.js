@@ -19,42 +19,46 @@ Router.register('/clothing', async () => {
       const kids = categoryChildren(b).filter(k => categorySubtreeCount(k) > 0);
       const count = categorySubtreeCount(b);
       return `
-        <div class="card" style="padding:22px 20px">
-          <a href="/products?category=${encodeURIComponent(b.id)}" data-link
-             style="display:flex;align-items:center;gap:14px;color:inherit">
-            <span style="width:52px;height:52px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-              <i class="fas ${categoryIcon(b.name)}" style="font-size:1.25rem;color:var(--primary)"></i>
+        <div class="category-branch-card">
+          <a href="/products?category=${encodeURIComponent(b.id)}" data-link class="category-branch-link">
+            <span class="category-branch-icon">
+              <i class="fas ${categoryIcon(b.name)}"></i>
             </span>
-            <span style="min-width:0">
-              <span style="display:block;font-family:Georgia,serif;font-size:1.15rem;font-weight:700">${esc(b.name)} <i class="fas fa-arrow-right" style="font-size:.7rem;opacity:.55;margin-left:4px"></i></span>
-              <span style="display:block;font-size:.82rem;color:var(--text-light)">${count} item${count === 1 ? '' : 's'}</span>
+            <span class="category-branch-copy">
+              <span>${esc(b.name)} <i class="fas fa-arrow-right"></i></span>
+              <small>${count} item${count === 1 ? '' : 's'}</small>
             </span>
           </a>
           ${kids.length ? `
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+          <div class="category-chip-list">
             ${kids.slice(0, 6).map(k => `
               <a href="/products?category=${encodeURIComponent(k.id)}" data-link
-                 style="font-size:.8rem;padding:5px 12px;border:1px solid var(--border);border-radius:20px;color:var(--text);background:var(--bg-soft)">${esc(k.name)}</a>`).join('')}
+                 class="category-mini-chip">${esc(k.name)}</a>`).join('')}
           </div>` : ''}
         </div>`;
     };
 
     document.getElementById('app').innerHTML = `
-      <div class="page"><div class="container section">
+      <div class="page"><div class="container section category-landing category-landing-clothing">
         <div class="breadcrumb" style="margin-bottom:18px"><a href="/" data-link>Home</a> / <span>Clothing</span></div>
-        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:26px">
+        <div class="category-landing-hero">
           <div>
-            <div style="color:var(--gold);font-size:.78rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">Shop</div>
-            <h1 style="font-family:Georgia,serif;font-size:clamp(1.8rem,4vw,2.4rem);margin-bottom:6px">Clothing</h1>
-            <p style="color:var(--text-light)">${total} item${total === 1 ? '' : 's'} available now.</p>
+            <div class="shop-page-kicker">Shop</div>
+            <h1>Clothing</h1>
+            <p>${total} item${total === 1 ? '' : 's'} available now. Browse by branch, then choose size and color on each product.</p>
           </div>
           <a href="/products?category=${encodeURIComponent(clothing.id)}" data-link class="btn btn-primary"><i class="fas fa-tshirt"></i> Shop All Clothing</a>
         </div>
         ${branches.length ? `
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;margin-bottom:38px">
+        <div class="category-branch-grid">
           ${branches.map(branchCard).join('')}
         </div>` : ''}
-        <h2 style="font-family:Georgia,serif;font-size:1.35rem;margin-bottom:16px">New In Clothing</h2>
+        <div class="merch-section-head">
+          <div>
+            <h2>New In Clothing</h2>
+            <p>Fresh arrivals from the clothing categories currently active in admin.</p>
+          </div>
+        </div>
         <div id="clothing-live-rail" class="grid-4 merch-grid"><div class="spinner"></div></div>
       </div></div>`;
 
@@ -236,7 +240,7 @@ Router.register('/custom-printing', async () => {
         <p style="color:rgba(255,255,255,.82);margin-bottom:20px">${comingSoon ? "Can't wait? Our handcrafted jewelry collection is ready to ship today." : 'Browse our printable products and upload your design right on the product page.'}</p>
         <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
           ${comingSoon
-            ? `<a href="/jewelry" data-link class="btn" style="background:#fff;color:var(--primary);font-weight:700"><i class="fas fa-gem"></i> Shop Jewelry</a>`
+            ? `<a href="/products" data-link class="btn" style="background:#fff;color:var(--primary);font-weight:700"><i class="fas fa-gem"></i> Shop Jewelry</a>`
             : `<a href="/products" data-link class="btn" style="background:#fff;color:var(--primary);font-weight:700">Browse Products</a>`}
           <a href="/bulk-orders" data-link class="btn" style="background:transparent;color:#fff;border:2px solid rgba(255,255,255,.5)">Request Bulk Quote</a>
         </div>
