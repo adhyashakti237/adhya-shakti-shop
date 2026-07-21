@@ -5061,3 +5061,106 @@ body:has(.sticky-atc.visible) .back-to-top { display: none; }
   .mobile-header-icon { width: 32px !important; height: 32px !important; font-size: .8rem; }
   .hamburger { width: 34px !important; height: 34px !important; }
 }
+
+/* Final phone drawer fix: keep category dropdowns stacked, scrollable, and
+   visually consistent after all older mobile rules have loaded. */
+@media (max-width: 900px) {
+  body.mobile-nav-open { overflow: hidden !important; }
+  .nav-links {
+    display: none !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    position: fixed !important;
+    top: var(--nav-h) !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-y !important;
+    gap: 8px !important;
+    padding: 12px 16px calc(18px + env(safe-area-inset-bottom)) !important;
+    background: #fbf8f2 !important;
+    box-shadow: 0 14px 34px rgba(14,45,35,.16) !important;
+    z-index: 99 !important;
+  }
+  .nav-links.open { display: flex !important; }
+  .nav-links a,
+  .nav-links button {
+    border-bottom: 0 !important;
+  }
+  .nav-links .nav-collection-item,
+  .mobile-drawer-link {
+    margin: 0 !important;
+    border: 1px solid rgba(229,221,208,.95) !important;
+    border-radius: 15px !important;
+    background: #fff !important;
+    box-shadow: 0 2px 12px rgba(29,92,74,.055) !important;
+  }
+  .nav-links .nav-collection-item {
+    display: block !important;
+    overflow: visible !important;
+  }
+  .nav-links .nav-collection-link,
+  .mobile-drawer-link {
+    min-height: 52px !important;
+    padding: 12px 14px !important;
+  }
+  .mobile-drawer-actions {
+    display: grid !important;
+    gap: 8px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+  }
+  .nav-links .nav-collection-menu {
+    display: none !important;
+    position: static !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    transform: none !important;
+    pointer-events: auto !important;
+    min-width: 0 !important;
+    padding: 8px !important;
+    border: 0 !important;
+    border-top: 0 !important;
+    border-radius: 0 0 15px 15px !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+  .nav-links .nav-collection-item.open .nav-collection-menu {
+    display: block !important;
+  }
+  .nav-links .nav-collection-row {
+    position: relative !important;
+    margin: 0 !important;
+  }
+  .nav-links .nav-collection-drop-link,
+  .nav-links .nav-collection-submenu a {
+    min-height: 44px !important;
+    border-bottom: 0 !important;
+    border-radius: 12px !important;
+    white-space: normal !important;
+  }
+  .nav-links .nav-collection-submenu {
+    display: none !important;
+    position: static !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    transform: none !important;
+    pointer-events: auto !important;
+    min-width: 0 !important;
+    margin: 0 0 4px 22px !important;
+    padding: 0 0 0 10px !important;
+    border-left: 2px solid rgba(29,92,74,.14) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+  .nav-links .nav-collection-row.open .nav-collection-submenu {
+    display: block !important;
+  }
+}
