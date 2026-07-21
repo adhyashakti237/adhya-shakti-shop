@@ -12,6 +12,7 @@ import json
 import os
 import sqlite3
 import sys
+import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -219,19 +220,21 @@ def audit_static_assets(failures: list[str]) -> dict:
     return report
 
 
-def read_url(base: str, path: str, timeout: int) -> bytes:
+def read_url(base: str, path: str, timeout: int) -> tuple[bytes, float]:
     req = urllib.request.Request(base.rstrip("/") + path, headers={"User-Agent": "AdhyaPerformanceAudit/1.0"})
+    start = time.perf_counter()
     with urllib.request.urlopen(req, timeout=timeout) as res:
-        return res.read(1_500_000)
+        body = res.read(1_500_000)
+    return body, time.perf_counter() - start
 
 
-def audit_live(base: str, timeout: int, failures: list[str]) -> dict:
+def audit_live(base: str, timeout: int, warn_seconds: float, failures: list[str]) -> dict:
     report = {"base": base, "sitemap_urls": 0, "sitemap_images": 0, "routes": []}
     if not base:
         print("SKIP live checks: no --base supplied")
         return report
     try:
-        sitemap = read_url(base, "/sitemap.xml", timeout)
+        sitemap, elapsed = read_url(base, "/sitemap.xml", timeout)
         root = ET.fromstring(sitemap)
         ns = {
             "sm": "http://www.sitemaps.org/schemas/sitemap/0.9",
@@ -243,14 +246,27 @@ def audit_live(base: str, timeout: int, failures: list[str]) -> dict:
         report["sitemap_images"] = len(images)
         status("live sitemap URLs", bool(urls), str(len(urls)), failures, fail=not urls)
         status("live sitemap image entries", bool(images), str(len(images)), failures)
+        status("live sitemap speed", elapsed <= warn_seconds, f"{elapsed:.2f}s", failures)
     except Exception as exc:
         status("live sitemap", False, str(exc), failures, fail=True)
 
-    for path in ["/", "/products", "/faq", "/robots.txt"]:
+    for path in [
+        "/",
+        "/products",
+        "/jewelry",
+        "/custom-printing",
+        "/faq",
+        "/contact",
+        "/robots.txt",
+        "/api/products?per_page=12",
+        "/api/category-tree",
+        "/api/settings",
+    ]:
         try:
-            body = read_url(base, path, timeout)
-            report["routes"].append({"path": path, "ok": True, "bytes": len(body)})
+            body, elapsed = read_url(base, path, timeout)
+            report["routes"].append({"path": path, "ok": True, "bytes": len(body), "seconds": elapsed})
             status(f"live {path}", bool(body), f"{len(body)} bytes", failures, fail=not body)
+            status(f"live {path} speed", elapsed <= warn_seconds, f"{elapsed:.2f}s", failures)
         except urllib.error.HTTPError as exc:
             report["routes"].append({"path": path, "ok": False, "error": f"{exc.code} {exc.reason}"})
             status(f"live {path}", False, f"{exc.code} {exc.reason}", failures, fail=True)
@@ -264,6 +280,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base", default="", help="Optional live/local base URL, e.g. https://adhyashaktishop.com")
     parser.add_argument("--timeout", type=int, default=15)
+    parser.add_argument("--warn-seconds", type=float, default=2.5, help="Warn when a live route/API is slower than this")
     parser.add_argument("--report-json", default="", help="Optional path for a machine-readable report")
     args = parser.parse_args()
 
@@ -275,7 +292,7 @@ def main() -> int:
     print("-" * 72)
     report["static_assets"] = audit_static_assets(failures)
     print("-" * 72)
-    report["live"] = audit_live(args.base, args.timeout, failures)
+    report["live"] = audit_live(args.base, args.timeout, args.warn_seconds, failures)
     print("=" * 72)
     if args.report_json:
         Path(args.report_json).write_text(json.dumps(report, indent=2), encoding="utf-8")
